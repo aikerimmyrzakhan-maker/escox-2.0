@@ -16,23 +16,7 @@ A full-stack web application based on ESCO classification with main skill extrac
 
 ## Screenshots
 
-### Home page
-![Home page](docs/homePage.png)
-
-### Skill extraction
-![Skill extraction page](docs/skillExtractionPage.png)
-
-### Skill extraction results
-![Skill extraction results](docs/skillExtractionPageResults.png)
-
-### Occupation extraction results
-![Occupation extraction results](docs/occupationExtractionResults.png)
-
-### Skill gap analysis
-![Skill gap analysis](docs/SGAResults.png)
-
-### SGA Tracker
-![SGA Tracker progress](docs/SGAtracker.png)
+See the [full screenshot gallery](docs/SCREENSHOTS.md) for a visual walkthrough of the app.
 
 ## Requirements
 
