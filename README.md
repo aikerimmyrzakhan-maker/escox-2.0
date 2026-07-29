@@ -14,6 +14,25 @@ A full-stack web application based on ESCO classification with main skill extrac
 8. Cross-page workflows - mark extracted skills as known/needed and carry them directly into skill gap analysis or occupation search; jump from an occupation straight into a pre-filled gap analysis with "Check your fit"
 9. Export & download - export results as JSON, CSV, or Excel from any results page
 
+## Screenshots
+
+### Home page
+![Home page](docs/homePage.png)
+
+### Skill extraction
+![Skill extraction page](docs/skillExtractionPage.png)
+
+### Skill extraction results
+![Skill extraction results](docs/skillExtractionPageResults.png)
+
+### Occupation extraction results
+![Occupation extraction results](docs/occupationExtractionResults.png)
+
+### Skill gap analysis
+![Skill gap analysis](docs/SGAResults.png)
+
+### SGA Tracker
+![SGA Tracker progress](docs/SGAtracker.png)
 
 ## Requirements
 
