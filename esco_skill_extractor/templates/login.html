@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Log In | ESCOX</title>
+
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='eu.webp') }}" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='index.css') }}?v=4">
+  <link rel="stylesheet" href="{{ url_for('static', filename='auth.css') }}">
+
+  <script>
+    window.SERVER = `http://{{ host }}:{{ port }}`;
+  </script>
+</head>
+
+<body class="auth-body">
+
+  <div class="auth-wrap">
+
+    <a href="/" class="auth-back">← Back to home</a>
+
+    <div class="auth-card">
+
+      <div class="auth-logo">
+        <img src="{{ url_for('static', filename='eu.webp') }}" alt="EU" />
+      </div>
+
+      <h1 class="auth-title">Welcome back</h1>
+      <p class="auth-sub">Log in to your ESCO account</p>
+
+      <div id="auth-error" class="auth-error" style="display:none;"></div>
+
+      <div class="auth-form">
+
+        <div class="auth-field">
+          <label for="email">Email</label>
+          <input type="email" id="email" placeholder="you@example.com" autocomplete="email" />
+        </div>
+
+        <div class="auth-field">
+          <label for="password">Password</label>
+          <input type="password" id="password" placeholder="••••••••" autocomplete="current-password" />
+        </div>
+
+        <button id="login-btn" class="auth-btn" type="button">
+          <span id="login-btn-text">Log in</span>
+          <svg id="login-spinner" class="auth-spinner" style="display:none;" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" stroke-dasharray="40 60" />
+          </svg>
+        </button>
+
+      </div>
+
+      <p class="auth-switch">
+        Don't have an account?
+        <a href="/auth/register">Register</a>
+      </p>
+
+    </div>
+  </div>
+
+  <script>
+    const btn     = document.getElementById('login-btn');
+    const errBox  = document.getElementById('auth-error');
+    const spinner = document.getElementById('login-spinner');
+    const btnText = document.getElementById('login-btn-text');
+
+    function showError(msg) {
+      errBox.textContent = msg;
+      errBox.style.display = 'block';
+    }
+
+    document.getElementById('password').addEventListener('keydown', e => {
+      if (e.key === 'Enter') btn.click();
+    });
+
+    btn.addEventListener('click', async () => {
+      const email = document.getElementById('email').value.trim();
+      const pwd   = document.getElementById('password').value;
+
+      errBox.style.display = 'none';
+      if (!email || !pwd) { showError('Please fill in all fields.'); return; }
+
+      btn.disabled = true;
+      spinner.style.display = 'inline-block';
+      btnText.textContent = 'Logging in…';
+
+      try {
+        const res  = await fetch('/auth/login', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ email, password: pwd }),
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          showError(data.error || 'Login failed.');
+          return;
+        }
+
+        // Redirect to profile or wherever user came from
+        const next = new URLSearchParams(location.search).get('next') || '/profile';
+        window.location.href = next;
+
+      } catch (e) {
+        showError('Network error. Please try again.');
+      } finally {
+        btn.disabled = false;
+        spinner.style.display = 'none';
+        btnText.textContent = 'Log in';
+      }
+    });
+  </script>
+
+</body>
+</html>

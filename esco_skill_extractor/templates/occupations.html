@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Occupations | ESCOX</title>
+
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='eu.webp') }}" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="{{ url_for('static', filename='index.css') }}?v=4">
+  <link rel="stylesheet" href="{{ url_for('static', filename='occupations.css') }}">
+
+  <script>
+    window.SERVER = `http://{{ host }}:{{ port }}`;
+  </script>
+  <script src="/static/index.js" defer></script>
+</head>
+
+<body>
+
+  <!-- TOPBAR  -->
+  <header class="topbar">
+    <div class="topbar-left">ESCOX</div>
+    <nav class="topbar-right">
+      <a href="/">home page</a>
+      <a href="/skills">extract skills</a>
+      <a href="/occupations" class="active">occupations</a>
+      <a href="/sga">skill gap analysis</a>
+    </nav>
+  </header>
+
+  <section id="tool-page">
+    <div class="container">
+
+      <!-- TOP ROW: same structure as skills.html -->
+      <div class="skills-section">
+        <div class="skills-top-row">
+
+          <!-- LEFT BOX -->
+          <div class="skills-box-left">
+            <h2>Find occupations:</h2>
+            <div class="skills-actions">
+            <button type="button" id="upload-occ-file-btn" class="action-btn">
+              <svg viewBox="0 0 24 24" fill="currentColor" class="icon">
+                <path d="M11.47 1.72a.75.75 0 0 1 1.06 0l3 3a.75.75 0 0 1-1.06 1.06l-1.72-1.72V7.5h-1.5V4.06L9.53 5.78a.75.75 0 0 1-1.06-1.06l3-3ZM11.25 7.5V15a.75.75 0 0 0 1.5 0V7.5h3.75a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3h-9a3 3 0 0 1-3-3v-9a3 3 0 0 1 3-3h3.75Z"/>
+              </svg>
+              upload CV or job requirements
+            </button>
+
+            <button type="button" id="clear-occ-btn-all" class="action-btn secondary">
+              <span style="color: #6366f1;">✕</span> clear
+            </button>
+
+            <input id="occ-file" type="file" accept=".pdf,.docx,.txt" style="display:none;" />
+          </div>
+          </div>
+
+          <!-- RIGHT BOX: search bar -->
+          <div class="skills-box-right">
+            <div class="search-bar">
+              <div class="search-inline">
+                <input type="text" id="occ-search" placeholder="Search occupations (e.g. data analyst)" />
+                <button id="search-occ-btn" class="action-btn">Search</button>
+                <button id="clear-occ-btn" class="action-btn secondary">Clear</button>
+              </div>
+              <div id="occ-search-dropdown" class="search-dropdown"></div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- INPUT + EXTRACT BUTTON -->
+        <div class="skills-main-row">
+          <div class="input-sections-row">
+
+            <!-- LEFT: paste text -->
+            <div class="input-section-left">
+              <div class="input-card">
+                <div class="manual-header">
+                  <span class="step-number">1</span>
+                  <span class="manual-title">Paste your CV or job text</span>
+                </div>
+                <textarea id="occ-text" placeholder="Paste your CV, job description, or list of skills here..."></textarea>
+              </div>
+            </div>
+
+            <!-- RIGHT: manual skill inputs that feed extraction -->
+            <div class="input-section-right">
+              <div class="input-card">
+                <div class="manual-header">
+                  <span class="step-number">2</span>
+                  <span class="manual-title">Or enter skills manually</span>
+                </div>
+                <div id="occ-manual-container" class="manual-skills-container"></div>
+                <button type="button" id="occ-add-field-btn" class="add-field-btn">+ Add field</button>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- EXTRACT BUTTON -->
+          <button id="occ-submit-btn" type="button" class="extract-btn" onclick="extractOccupations()">
+            <svg viewBox="0 0 24 24" fill="currentColor" class="icon">
+              <path d="M9 4a3 3 0 0 1 6 0h3a2 2 0 0 1 2 2v4H2V6a2 2 0 0 1 2-2h3zm2 0h2a1 1 0 0 0-2 0zM2 11h20v7a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-7z"/>
+            </svg>
+            Find Occupations
+          </button>
+        </div>
+
+      </div>
+
+      <!-- KPI CARDS (hidden until results) -->
+      <div id="occ-summary" style="display:none;">
+        <div class="kpi-grid skill-summary-grid">
+          <div class="kpi-card">
+            <span class="kpi-value" id="kpi-total">—</span>
+            <span class="kpi-label">Total Found</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-value" id="kpi-essential">—</span>
+            <span class="kpi-label">Avg. Essential Skills</span>
+          </div>
+          <div class="kpi-card">
+            <span class="kpi-value" id="kpi-groups">—</span>
+            <span class="kpi-label">ISCO Groups</span>
+          </div>
+          <div class="kpi-card highlight">
+            <span class="kpi-value" id="kpi-top">—</span>
+            <span class="kpi-label">Top Match</span>
+          </div>
+        </div>
+      </div>
+
+
+      <div id="occ-output"></div>
+
+      <!-- TWO-PANEL RESULTS -->
+      <div class="results-layout" id="occ-results-layout" style="display:none;">
+
+        <!-- LEFT: occupation list -->
+        <div id="occ-list" class="results-left">
+          <h3 class="results-title">Occupations:</h3>
+          <p style="color:#9ca3af;">Results will appear here</p>
+        </div>
+
+        <!-- RIGHT: occupation details -->
+        <div id="occ-details" class="results-right">
+          <h3 class="results-title">Occupation Details:</h3>
+          <p style="color:#9ca3af;">Select an occupation to see details</p>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+
+  <script>
+  let _occResults = [];   
+
+  /* Add manual input field */
+  function occAddField(value = "") {
+    const container = document.getElementById("occ-manual-container");
+    const row = document.createElement("div");
+    row.className = "skill-input-row";
+    row.innerHTML = `
+      <input type="text" class="skill-input occ-input" value="${value}" placeholder="Enter skill or job title..." />
+      <button type="button" class="remove-skill-btn" onclick="this.closest('.skill-input-row').remove()">✕</button>
+    `;
+    container.appendChild(row);
+  }
+
+  function downloadOccJSON() {
+  const occ = window._lastOccForSave;
+  if (!occ) return;
+  const blob = new Blob([JSON.stringify(occ, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = (occ.label || 'occupation').replace(/\s+/g, '_') + '.json'; a.click();
+}
+
+function downloadOccCSV() {
+  const occ = window._lastOccForSave;
+  if (!occ) return;
+  const essential = (occ.skills?.essential || []).map(s => `"${s.label}","essential","${s.type || ''}"`);
+  const optional  = (occ.skills?.optional  || []).map(s => `"${s.label}","optional","${s.type || ''}"`);
+  const csv = ['label,type,category', ...essential, ...optional].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = (occ.label || 'occupation').replace(/\s+/g, '_') + '.csv'; a.click();
+}
+
+function downloadOccExcel() {
+  const occ = window._lastOccForSave;
+  if (!occ) return;
+  const rows = [
+    ...(occ.skills?.essential || []).map(s => `<tr><td>${s.label}</td><td>essential</td><td>${s.type || ''}</td></tr>`),
+    ...(occ.skills?.optional  || []).map(s => `<tr><td>${s.label}</td><td>optional</td><td>${s.type || ''}</td></tr>`),
+  ].join('');
+  const html = `<table><tr><th>Label</th><th>Type</th><th>Category</th></tr>${rows}</table>`;
+  const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = (occ.label || 'occupation').replace(/\s+/g, '_') + '.xls'; a.click();
+}
+
+window.downloadOccJSON  = downloadOccJSON;
+window.downloadOccCSV   = downloadOccCSV;
+window.downloadOccExcel = downloadOccExcel;
+
+  /* Get manual inputs */
+  function getOccManualInputs() {
+    return Array.from(document.querySelectorAll(".occ-input"))
+      .map(i => i.value.trim()).filter(Boolean);
+  }
+
+
+  /* Upload CV and extract occupations */
+  async function uploadCvForOccupations() {
+    const fi = document.getElementById("occ-file");
+    if (!fi?.files?.length) { alert("Choose a file first."); return; }
+
+    const fd = new FormData();
+    fd.append("file", fi.files[0]);
+
+    const out = document.getElementById("occ-output");
+    out.innerHTML = "<p>Extracting text from file…</p>";
+
+    try {
+      const resp = await fetch(`${window.SERVER}/extract-skills-from-file`, { method: "POST", body: fd });
+      const data = await resp.json();
+      if (!resp.ok) { out.innerHTML = `<p style="color:red">${escapeHtml(data.error || "Upload failed")}</p>`; return; }
+
+      // Put extracted text into the textarea, then run extraction
+      if (data.text) {
+        document.getElementById("occ-text").value = data.text.slice(0, 2000); 
+      }
+      out.innerHTML = "<p style='color:green'>✓ Text extracted — running occupation search…</p>";
+      await extractOccupations();
+    } catch (e) {
+      out.innerHTML = "<p style='color:red'>Upload failed</p>";
+    }
+  }
+
+
+  /* Occupation search (live search against backend) */
+  async function searchOccupations() {
+    const query = (document.getElementById("occ-search")?.value || "").trim();
+    const dd = document.getElementById("occ-search-dropdown");
+
+    if (!query) { if (dd) dd.innerHTML = ""; return; }
+
+    try {
+      const resp = await fetch(`${window.SERVER}/search-occupations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query, limit: 20 }),
+      });
+      if (!resp.ok) return;
+      const results = await resp.json();
+
+      if (dd) {
+        dd.innerHTML = results.map(o => `
+          <div class="search-result-item" onclick="selectOccupation(${JSON.stringify(o).replace(/"/g, '&quot;')})">
+            ${escapeHtml(o.label)}
+          </div>
+        `).join("");
+      }
+    } catch(e) { console.warn(e); }
+  }
+
+  function selectOccupation(occ) {
+    const dd = document.getElementById("occ-search-dropdown");
+    if (dd) dd.innerHTML = "";
+
+    // Add label to the textarea so it's visible to the user
+    const textarea = document.getElementById("occ-text");
+    if (textarea) {
+      const current = textarea.value.split(",").map(s => s.trim()).filter(Boolean);
+      if (!current.includes(occ.label)) {
+        textarea.value = [...current, occ.label].join(", ");
+      }
+    }
+
+    // Also add to results and show details immediately
+    if (!_occResults.find(o => o.id === occ.id)) {
+      _occResults.unshift(occ);
+    }
+
+    if (_occResults.length) {
+      renderOccupationList(_occResults);
+      renderOccKpis(_occResults);
+      document.getElementById("occ-results-layout").style.display = "flex";
+      showOccupationDetails(0);
+    }
+
+    // Clear search input
+    const searchInput = document.getElementById("occ-search");
+    if (searchInput) searchInput.value = "";
+  }
+
+
+  /* Main extraction */
+  async function extractOccupations() {
+    const text    = (document.getElementById("occ-text")?.value || "").trim();
+    const manual  = getOccManualInputs();
+    const out     = document.getElementById("occ-output");
+
+    if (!text && !manual.length) {
+      out.innerHTML = "<p style='color:red'>Please paste text or add skills/titles manually.</p>";
+      return;
+    }
+
+    // Build list of input strings
+    const STOP_WORDS = new Set([
+        'we','are','looking','for','a','an','the','with','experience','in',
+        'and','or','is','to','of','that','this','will','must','should','can',
+        'have','has','our','their','your','its','be','been','being','do',
+        'does','did','from','at','by','about','as','into','through','during'
+      ]);
+
+      const cleaned = text
+        .split(/[,;\n]| and /i)
+        .map(t => t.trim().replace(/[.!?]+$/, ''))
+        .map(t => {
+          const words = t.split(/\s+/);
+          if (words.length > 3) {
+            return words.filter(w => !STOP_WORDS.has(w.toLowerCase())).join(' ');
+          }
+          return t;
+        })
+        .filter(Boolean);
+
+      const parts = [...cleaned, ...manual];
+
+    out.innerHTML = "<p>Finding matching occupations…</p>";
+    document.getElementById("occ-summary").style.display = "none";
+    document.getElementById("occ-results-layout").style.display = "none";
+
+    try {
+      const resp = await fetch(`${window.SERVER}/extract-occupations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(parts),
+      });
+
+      if (!resp.ok) {
+        const txt = await resp.text();
+        out.innerHTML = `<pre style="color:red">${escapeHtml(txt)}</pre>`;
+        return;
+      }
+
+      const data = await resp.json();
+      // data is now array of enriched occupation objects
+      const results = Array.isArray(data) ? data.flat() : [];
+
+      if (!results.length) {
+        // Fallback: try search-occupations with simplified queries
+        out.innerHTML = "<p>Trying semantic search…</p>";
+        for (const part of parts.slice(0, 5)) {
+          const query = part.replace(/\s*\(.*?\)\s*/g, '').trim() || part;
+          const r2 = await fetch(`${window.SERVER}/search-occupations`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ query, limit: 10 }),
+          });
+          if (r2.ok) {
+            const r2data = await r2.json();
+            r2data.forEach(o => {
+              if (!results.find(x => x.id === o.id)) results.push(o);
+            });
+          }
+        }
+        if (!results.length) {
+          out.innerHTML = "<p>No occupations found. Try different input.</p>";
+          return;
+        }
+      }
+
+      _occResults = results;
+      out.innerHTML = "";
+      renderOccupationList(results);
+      renderOccKpis(results);
+      showOccupationDetails(0);   
+
+      document.getElementById("occ-results-layout").style.display = "flex";
+
+    } catch(e) {
+      console.error(e);
+      out.innerHTML = "<p style='color:red'>Something went wrong. Check the console.</p>";
+    }
+  }
+
+
+  /* Render KPI cards */
+  function renderOccKpis(results) {
+    const total = results.length;
+    const avgEssential = total
+      ? Math.round(results.reduce((s, o) => s + (o.skills?.essential?.length || 0), 0) / total)
+      : 0;
+    const groups = new Set(results.map(o => o.iscoGroup).filter(Boolean)).size;
+    const top = results[0]?.label || "—";
+
+    document.getElementById("kpi-total").textContent     = total;
+    document.getElementById("kpi-essential").textContent = avgEssential;
+    document.getElementById("kpi-groups").textContent    = groups;
+    document.getElementById("kpi-top").textContent       = top.length > 18 ? top.slice(0, 16) + "…" : top;
+    document.getElementById("occ-summary").style.display = "block";
+  }
+
+
+  /* Render LEFT panel list */
+  function renderOccupationList(results) {
+    const container = document.getElementById("occ-list");
+    if (!container) return;
+
+    const items = results.map((o, i) => `
+      <li class="summary-item skill-review-row" onclick="showOccupationDetails(${i})">
+        <div class="skill-main">
+          <span class="skill-tag">${escapeHtml(o.label || "Unknown")}</span>
+        </div>
+        <div class="skill-actions">
+          <div class="action-badges">
+            ${o.iscoGroup ? `<span class="occ-isco-badge">ISCO ${escapeHtml(o.iscoGroup)}</span>` : ""}
+          </div>
+        </div>
+      </li>
+    `).join("");
+
+    container.innerHTML = `
+      <h3 class="results-title">Occupations:</h3>
+      <ul class="summary-list">${items}</ul>
+    `;
+  }
+
+
+  /* Show RIGHT panel details */
+  async function showOccupationDetails(index) {
+    const occ = _occResults[index];
+    const container = document.getElementById("occ-details");
+    if (!occ || !container) return;
+
+    // Show loading immediately
+    container.innerHTML = `
+      <h3 class="results-title">Occupation Details:</h3>
+      <h2>
+      <a href="${escapeHtml(occ.id || '#')}" target="_blank" rel="noopener noreferrer"
+        style="color:inherit; text-decoration:none; border-bottom: 2px solid #6366f1;">
+        ${escapeHtml(occ.label || "")}
+      </a>
+    </h2>
+      <p style="color:#9ca3af;margin-top:12px;">Loading details…</p>
+    `;
+
+    // If we already have full details (description + skills), use them
+    // Otherwise fetch from /occupation-details
+    let detail = occ;
+    if (!occ.description && occ.id) {
+      try {
+        const resp = await fetch(`${window.SERVER}/occupation-details`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ uri: occ.id }),
+        });
+        if (resp.ok) {
+          detail = await resp.json();
+          // cache it back so next click is instant
+          _occResults[index] = { ...occ, ...detail };
+        }
+      } catch(e) { console.warn("Could not fetch occupation details:", e); }
+    }
+
+    renderOccupationDetail(container, detail);
+
+  }
+
+
+  /* Render the detail panel HTML */
+  function renderOccupationDetail(container, occ) {
+    window._lastOccForSave = occ;  
+    // ISCO path hierarchy
+    const path = Array.isArray(occ.iscoPath) ? occ.iscoPath : [];
+    const pathHtml = path.length ? `
+      <div class="hierarchy-box">
+        <div class="hierarchy-header">
+          <i class="fas fa-sitemap hierarchy-icon"></i>
+          <div>
+            <div class="hierarchy-title">ISCO Classification</div>
+            <div class="hierarchy-subtitle">Occupation hierarchy</div>
+          </div>
+        </div>
+        <div class="hierarchy-tree">
+          ${path.map((level, i) => `
+            <div class="hierarchy-level level-${i}" style="${i > 0 ? "display:none" : ""}">
+              ${i < path.length - 1
+                ? `<span class="arrow" onclick="toggleLevel(${i})">▸</span>`
+                : `<span class="arrow-placeholder"></span>`}
+              <span class="hierarchy-pill">
+                <span class="level-badge">Level ${i}:</span>
+                <span class="level-text">${escapeHtml(level)}</span>
+              </span>
+            </div>
+          `).join("")}
+        </div>
+      </div>
+    ` : "";
+
+    // Alt labels
+    const alts = Array.isArray(occ.altLabels) ? occ.altLabels.slice(0, 6) : [];
+    const altHtml = alts.length ? `
+      <div class="similar-box">
+        <div class="similar-title">Also known as:</div>
+        <div class="similar-skills">
+          ${alts.map(a => `<span class="similar-pill-link">${escapeHtml(a)}</span>`).join("")}
+        </div>
+      </div>
+    ` : "";
+
+    // Essential skills
+    const essential = occ.skills?.essential || [];
+    const optional  = occ.skills?.optional  || [];
+
+    const essentialHtml = essential.length ? `
+      <div class="occ-skills-section">
+        <div class="occ-skills-label occ-label-essential">
+          <i class="fas fa-star"></i>&nbsp; Essential Skills & Knowledge
+        </div>
+        <div class="similar-skills" style="margin-top:10px;">
+          ${essential.map(s => `
+            <a href="${escapeHtml(s.uri)}" target="_blank" rel="noopener noreferrer"
+               class="similar-pill-link occ-skill-pill ${s.type === "knowledge" ? "occ-pill-knowledge" : ""}">
+              ${escapeHtml(s.label)}
+            </a>
+          `).join("")}
+        </div>
+      </div>
+    ` : "";
+
+    const optionalHtml = optional.length ? `
+      <div class="occ-skills-section" style="margin-top:16px;">
+        <div class="occ-skills-label occ-label-optional">
+          <i class="fas fa-plus-circle"></i>&nbsp; Optional Skills & Knowledge
+        </div>
+        <div class="similar-skills" style="margin-top:10px;">
+          ${optional.slice(0, 12).map(s => `
+            <a href="${escapeHtml(s.uri)}" target="_blank" rel="noopener noreferrer"
+               class="similar-pill-link occ-skill-pill occ-pill-optional ${s.type === "knowledge" ? "occ-pill-knowledge" : ""}">
+              ${escapeHtml(s.label)}
+            </a>
+          `).join("")}
+          ${optional.length > 12 ? `<span class="occ-more-badge">+${optional.length - 12} more</span>` : ""}
+        </div>
+      </div>
+    ` : "";
+
+    // CTA and go to SGA with this occupation's skills as "needed"
+    const neededSkills = essential.map(s => s.label).join(", ");
+
+    container.innerHTML = `
+      <div class="sga-results-header">
+        <span class="results-title">Occupation Details:</span>
+        <div class="sga-toolbar" id="occ-detail-toolbar">
+
+          <button class="sga-toolbar-btn" onclick="openSaveModal('occupation', _occResults, 'Occupations — ' + new Date().toLocaleDateString())">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 3H7a2 2 0 0 0-2 2v14l7-3 7 3V5a2 2 0 0 0-2-2z"/></svg>
+            Save into your profile
+          </button>
+
+          <div class="sga-toolbar-divider"></div>
+
+          <button class="sga-toolbar-btn" id="occ-copy-btn" onclick="
+            const csv = window._lastOccForSave?.skills?.essential?.map(s => s.label).join(',') || '';
+            navigator.clipboard.writeText(csv).then(() => {
+              const el = document.getElementById('occ-copy-title');
+              if (el) { el.textContent = 'Copied!'; setTimeout(() => el.textContent = 'Copy CSV', 1500); }
+            })">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12V1zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h11v14z"/></svg>
+            <span id="occ-copy-title">Copy CSV</span>
+          </button>
+
+          <div class="sga-toolbar-divider"></div>
+
+          <div class="sga-toolbar-btn sga-toolbar-download" id="occ-dl-wrap">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 16l-5-5h3V4h4v7h3l-5 5zm-7 2h14v2H5v-2z"/></svg>
+            Download results
+            <svg viewBox="0 0 24 24" fill="currentColor" style="width:10px;height:10px;"><path d="M7 10l5 5 5-5z"/></svg>
+            <div class="sga-toolbar-dropdown">
+              <button onclick="event.stopPropagation(); downloadOccJSON()">JSON</button>
+              <button onclick="event.stopPropagation(); downloadOccCSV()">CSV</button>
+              <button onclick="event.stopPropagation(); downloadOccExcel()">Excel</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+      <h2>
+          <a href="${escapeHtml(occ.id || '#')}" target="_blank" rel="noopener noreferrer"
+            style="color:inherit; text-decoration:none; border-bottom: 2px solid #6366f1;">
+            ${escapeHtml(occ.label || "")}
+          </a>
+        </h2>
+
+      ${occ.iscoGroup ? `<p class="occ-isco-line"><i class="fas fa-layer-group"></i> ISCO Group: <strong>${escapeHtml(occ.iscoGroup)}</strong></p>` : ""}
+
+      <p style="margin-top:10px;color:${occ.description ? "#444" : "#999"}">
+        <strong>Description:</strong><br>
+        ${occ.description ? escapeHtml(occ.description) : "No description available."}
+      </p>
+
+      ${altHtml}
+      ${pathHtml}
+      ${essentialHtml}
+      ${optionalHtml}
+
+      <!-- CTA: analyze skill gap for this occupation -->
+      ${neededSkills ? `
+        <div class="skills-next-actions" style="margin-top:24px;">
+          <div class="skills-next-card">
+            <div class="skills-next-icon">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M5 16.5 9 12.5l3 3 6-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M16 8.5h2v2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M4.5 19h15" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" opacity="0.45"/>
+              </svg>
+            </div>
+            <div class="skills-next-content">
+              <div class="skills-next-title">Check your fit</div>
+              <div class="skills-next-text">
+                See how your skills match against this occupation's requirements
+              </div>
+              <button type="button" class="skills-next-btn"
+                onclick="sendToSga(${JSON.stringify(neededSkills).replace(/"/g, '&quot;')})">
+                Analyze skill gap
+                <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                  <path d="M4.167 10h11.666" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+                  <path d="M10.833 5 15.833 10l-5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      ` : ""}
+    `;
+
+    setTimeout(() => {
+    const dlBtn = document.getElementById('occ-dl-wrap');
+    if (dlBtn) {
+      dlBtn.addEventListener('click', () => dlBtn.classList.toggle('open'));
+      document.addEventListener('click', e => {
+        if (!e.target.closest('#occ-dl-wrap')) dlBtn.classList.remove('open');
+      }, { once: false });
+    }
+  }, 0);
+  }
+
+
+  /* Send occupation's skills to SGA page */
+  function sendToSga(neededSkills) {
+    sessionStorage.setItem("sgaSkillPayload", JSON.stringify({
+      have: [],
+      need: neededSkills.split(", ").filter(Boolean),
+    }));
+    window.location.href = "/sga";
+  }
+
+
+  /* Boot */
+  document.addEventListener("DOMContentLoaded", () => {
+
+    // Check if arriving from skills page with a payload
+    try {
+  const raw = sessionStorage.getItem("occupationsSkillPayload");
+  if (raw) {
+    const payload = JSON.parse(raw);
+    sessionStorage.removeItem("occupationsSkillPayload");
+    console.log("payload:", JSON.stringify(payload)); 
+
+    // If a specific skill was clicked, search only that one
+    const skills = payload.selectedSkill?.label
+      ? [payload.selectedSkill.label]
+      : [
+          ...(payload.have || []),
+          ...(payload.need || []),
+          ...(payload.allExtracted || []).map(s => s.label || "").filter(Boolean),
+        ];
+
+    if (skills.length) {
+      document.getElementById("occ-text").value = skills.join(", ");
+      document.getElementById("occ-output").innerHTML = "<p>Searching occupations…</p>";
+
+      setTimeout(async () => {
+        for (const skill of skills.slice(0, 5)) {
+        const query = skill.replace(/\s*\(.*?\)\s*/g, '').trim() || skill;
+        console.log(`Searching occupations for: "${query}"`);
+        const resp = await fetch(`${window.SERVER}/search-occupations`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query, limit: 10 }),
+        });
+        if (resp.ok) {
+          const results = await resp.json();
+          console.log(`Results for "${query}":`, results);
+          results.forEach(o => {
+            if (!_occResults.find(r => r.id === o.id)) {
+              _occResults.push(o);
+            }
+          });
+        }
+      }
+        if (_occResults.length) {
+          renderOccupationList(_occResults);
+          renderOccKpis(_occResults);
+          document.getElementById("occ-results-layout").style.display = "flex";
+          document.getElementById("occ-output").innerHTML = "";
+          showOccupationDetails(0);
+        } else {
+          document.getElementById("occ-output").innerHTML = "<p>No occupations found for these skills.</p>";
+        }
+      }, 300);
+    }
+  }
+} catch(e) { console.error("Boot error:", e); }
+
+    // Upload button
+    document.getElementById("upload-occ-file-btn")?.addEventListener("click", () => {
+      document.getElementById("occ-file")?.click();
+    });
+    document.getElementById("occ-file")?.addEventListener("change", uploadCvForOccupations);
+
+    // Add field button
+    document.getElementById("occ-add-field-btn")?.addEventListener("click", () => occAddField());
+
+    // Search bar
+    document.getElementById("occ-search")?.addEventListener("input", searchOccupations);
+    document.getElementById("occ-search")?.addEventListener("keydown", e => {
+      if (e.key === "Enter") { e.preventDefault(); searchOccupations(); }
+    });
+
+    document.getElementById("search-occ-btn")?.addEventListener("click", e => {
+      e.preventDefault(); searchOccupations();
+    });
+
+    document.getElementById("clear-occ-btn")?.addEventListener("click", () => {
+      const s = document.getElementById("occ-search");
+      if (s) s.value = "";
+      const dd = document.getElementById("occ-search-dropdown");
+      if (dd) dd.innerHTML = "";
+    });
+
+    // Close dropdown on outside click
+    document.addEventListener("click", e => {
+      if (!e.target.closest(".search-bar")) {
+        const dd = document.getElementById("occ-search-dropdown");
+        if (dd) dd.innerHTML = "";
+      }
+    });
+    document.getElementById("clear-occ-btn-all")?.addEventListener("click", () => {
+    document.getElementById("occ-text").value = "";
+    document.querySelectorAll(".occ-input").forEach(i => i.closest(".skill-input-row")?.remove());
+    document.getElementById("occ-output").innerHTML = "";
+    document.getElementById("occ-summary").style.display = "none";
+    document.getElementById("occ-results-layout").style.display = "none";
+    _occResults = [];
+  });
+
+  });
+
+  window.showOccupationDetails = showOccupationDetails;
+  window.extractOccupations    = extractOccupations;
+  window.selectOccupation      = selectOccupation;
+  window.sendToSga             = sendToSga;
+  window.occAddField           = occAddField;
+  </script>
+
+
+</body>
+</html>

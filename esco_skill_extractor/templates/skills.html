@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <title>Skills | ESCOX</title>
+
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='eu.webp') }}" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <link rel="stylesheet" href="{{ url_for('static', filename='index.css') }}?v=4">
+  <link rel="stylesheet" href="{{ url_for('static', filename='skills.css') }}">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <script>
+    window.SERVER = `http://{{ host }}:{{ port }}`;
+  </script>
+
+  <script src="/static/index.js"></script>
+</head>
+
+<body>
+  <header class="topbar">
+    <div class="topbar-left">ESCOX</div>
+
+    <nav class="topbar-right">
+      <a href="/">home page</a>
+      <a href="/skills"  class="active">extract skills</a>
+      <a href="/occupations">occupations</a>
+      <a href="/sga">skill gap analysis</a>
+    </nav>
+  </header>
+
+  <section id="tool-page">
+    <div class="container">
+
+      <form id="extract-form" novalidate>
+
+        <div class="skills-section">
+
+          <!-- TOP ROW (TWO SEPARATE BOXES) -->
+          <div class="skills-top-row">
+
+            <!-- LEFT BOX -->
+           <div class="skills-box-left">
+
+            <h2>Add skills to extract:</h2>
+
+            <div class="skills-actions">
+
+              <button type="button" id="add-skill-field-btn-top" class="action-btn">
+                <svg viewBox="0 0 24 24" fill="currentColor" class="icon">
+                  <path fill-rule="evenodd"
+                    d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25ZM12.75 9a.75.75 0 0 0-1.5 0v2.25H9a.75.75 0 0 0 0 1.5h2.25V15a.75.75 0 0 0 1.5 0v-2.25H15a.75.75 0 0 0 0-1.5h-2.25V9Z"
+                    clip-rule="evenodd"/>
+                </svg>
+                add field
+              </button>
+
+              <button type="button" id="upload-skills-file-btn" class="action-btn">
+                <svg viewBox="0 0 24 24" fill="currentColor" class="icon">
+                  <path d="M11.47 1.72a.75.75 0 0 1 1.06 0l3 3a.75.75 0 0 1-1.06 1.06l-1.72-1.72V7.5h-1.5V4.06L9.53 5.78a.75.75 0 0 1-1.06-1.06l3-3ZM11.25 7.5V15a.75.75 0 0 0 1.5 0V7.5h3.75a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3h-9a3 3 0 0 1-3-3v-9a3 3 0 0 1 3-3h3.75Z"/>
+                </svg>
+                upload file
+              </button>
+
+              <button type="button" id="clear-all-btn" class="action-btn secondary">
+                <svg viewBox="0 0 24 24" fill="currentColor" class="icon">
+                  <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                </svg>
+                clear
+              </button>
+
+              <input id="skills-file" type="file" accept=".pdf,.docx,.txt" style="display:none;" />
+
+            </div>
+          </div>
+            
+
+            <!-- RIGHT BOX -->
+            <div class="skills-box-right">
+
+              <div class="search-bar">
+
+                  <div class="search-inline">
+
+                    <input
+                      type="text"
+                      id="skill-search"
+                      placeholder="Search skills (e.g. Java)"
+                    />
+
+                    <select id="skill-type">
+                      <option value="ALL">ALL</option>
+                    </select>
+
+                    <label class="checkbox">
+                      <input type="checkbox" id="tag-digital" />
+                      Digital
+                    </label>
+
+                    <label class="checkbox">
+                      <input type="checkbox" id="tag-green" />
+                      Green
+                    </label>
+
+                    <button id="search-skills-btn" class="action-btn">
+                      Search
+                    </button>
+
+                    <button id="clear-skills-btn" class="action-btn secondary">
+                      Clear
+                    </button>
+
+                  </div>
+
+
+                  <div id="search-dropdown" class="search-dropdown"></div>
+
+              </div>
+            
+
+
+
+            </div>
+
+          </div>
+
+          <!-- MAIN ROW -->
+          <div class="skills-main-row">
+
+              <div class="input-sections-row">
+
+                <div class="input-section-left">
+                  <div class="input-card">
+                    <div class="manual-header">
+                      <span class="step-number">1</span>
+                      <span class="manual-title">Paste text (bulk input)</span>
+                    </div>
+                    <textarea
+                      id="text"
+                      placeholder="paste text here..."
+                    ></textarea>
+                  </div>
+                </div>
+
+                <div class="input-section-right">
+                  <div class="input-card">
+                    <div class="manual-header">
+                      <span class="step-number">2</span>
+                      <span class="manual-title">Add skills manually (one per field)</span>
+                    </div>
+
+                    <div id="manual-skills-container" class="manual-skills-container">
+                      </div>
+
+                    <button type="button" id="add-skill-field-btn" class="add-field-btn">
+                      + Add field
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+
+              <!-- BUTTON stays full width below -->
+              <button id="submit-button" type="button" class="extract-btn">
+                <svg viewBox="0 0 24 24" fill="currentColor" class="icon">
+                  <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3zm6.5 9.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2zM5.5 14l1 2.8 2.8 1-2.8 1-1 2.8-1-2.8-2.8-1 2.8-1 1-2.8z"/>
+                </svg>
+                Extract skills
+              </button>
+
+</div>
+
+        </div>
+      </form>
+
+      <div id="skills-summary"></div>
+      <div id="output"></div>
+
+      <div class="results-layout">
+
+        <div id="skills-list" class="results-left">
+          Skills will appear here
+        </div>
+
+        <div id="skill-details" class="results-right">
+          Select a skill to see details
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+</body>
+</html>

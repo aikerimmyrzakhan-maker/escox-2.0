@@ -1,58 +1,141 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>ESCO Skill Extractor</title>
+
     <link
       rel="icon"
       type="image/png"
       href="{{ url_for('static', filename='eu.webp') }}"
     />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='index.css') }}"
+      href="{{ url_for('static', filename='index.css') }}?v=4"
     />
+
     <script>
+      /* Backend host/port injected by Flask */
       window.SERVER = `http://{{ host }}:{{ port }}`;
     </script>
-    <script src="{{ url_for('static', filename='index.js') }}"></script>
-    <title>ESCO Skill Extractor</title>
+
+    <script src="{{ url_for('static', filename='index.js') }}?v=6" defer></script>
   </head>
-  <body>
-    <img
-      src="{{ url_for('static', filename='eu.webp') }}"
-      alt="The flag of EU."
-    />
-    <div class="container">
-      <h1>ESCO Skill Extractor</h1>
-      <form>
-        <!-- Entity to extract -->
-        <fieldset>
-          <legend>Choose the entity to extract</legend>
-          <label>
-            Skills
-            <input type="radio" name="entity" value="skills" checked />
-          </label>
-          <label>
-            Occupations
-            <input type="radio" name="entity" value="occupations" />
-          </label>
-        </fieldset>
-        <!-- Text -->
-        <textarea
-          id="text"
-          placeholder="Paste your text here to extract skills or occupations."
-          rows="20"
-        ></textarea>
-        <!-- Submit -->
-        <button
-          id="submit-button"
-          type="submit"
-          onclick="extractEntity(event)"
-        ></button>
-      </form>
-      <!-- Output -->
-      <output id="output"> </output>
+
+<body>
+
+    <!-- TOPBAR -->
+      <header class="topbar">
+        <div class="topbar-left">ESCOX</div>
+        <nav class="topbar-right">
+          <a href="/skills">extract skills</a>
+          <a href="/occupations">occupations</a>
+          <a href="/sga">skill gap analysis</a>
+          <!-- checkAuth() injects Log in / avatar here automatically -->
+        </nav>
+      </header>
+ <!-- MAIN PAGE -->
+<section id="main-page">
+  <div class="main-page-inner">
+    <p class="main-page-kicker">main page</p>
+
+    <div class="main-page-logo">
+      <img
+        src="{{ url_for('static', filename='eu.webp') }}"
+        alt="Flag of the European Union"
+      />
     </div>
-  </body>
+
+    <h1 class="main-page-title">ESCOX</h1>
+
+    <p class="main-page-subtitle">
+     Identify your skills, match them to jobs, track your progress
+    </p>
+
+    <a href="/skills" class="main-start-btn">
+      <span class="main-start-btn-icon">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 3a1 1 0 0 1 1 1v8.59l2.3-2.3a1 1 0 1 1 1.4 1.42l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.42L11 12.59V4a1 1 0 0 1 1-1z"/>
+          <path d="M5 19a1 1 0 0 1 1-1h12a1 1 0 1 1 0 2H6a1 1 0 0 1-1-1z"/>
+        </svg>
+      </span>
+      <span class="main-start-btn-text">Start Extracting Skills</span>
+    </a>
+
+    <div class="main-actions">
+      <h2 class="main-actions-title">What would you like to do?</h2>
+
+      <div class="main-cards">
+
+        <!-- CARD 1 -->
+        <article class="main-card">
+          <div class="main-card-icon-wrap">
+            <svg class="main-card-icon" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M6 2a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6H6zm7 1.5V8h4.5L13 3.5zM8 12h8v1.5H8V12zm0 3h8v1.5H8V15z"/>
+            </svg>
+          </div>
+
+          <p class="main-card-text">
+            Upload CV, resume, or paste text to extract relevant skills.
+          </p>
+
+          <a href="/skills" class="main-card-btn">
+            <span>Extract skills</span>
+            <span>→</span>
+          </a>
+        </article>
+
+        <!-- CARD 2 -->
+        <article class="main-card">
+          <div class="main-card-icon-wrap">
+            <svg class="main-card-icon" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M9 4a3 3 0 0 1 6 0h3a2 2 0 0 1 2 2v4H2V6a2 2 0 0 1 2-2h3zm2 0h2a1 1 0 0 0-2 0zM2 11h20v7a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-7z"/>
+            </svg>
+          </div>
+
+          <p class="main-card-text">
+            See jobs that match your skills and interests.
+          </p>
+
+          <a href="/occupations" class="main-card-btn">
+            <span>See occupations</span>
+            <span>→</span>
+          </a>
+        </article>
+
+        <!-- CARD 3 -->
+        <article class="main-card">
+          <div class="main-card-icon-wrap">
+            <svg class="main-card-icon" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M4 19h16v2H2V3h2v16zm3-3l3-4 3 3 5-6 1.5 1.2-6.5 8-3-3-2.5 3L7 16z"/>
+            </svg>
+          </div>
+
+          <p class="main-card-text">
+            Compare your skills against a target job’s requirements.
+          </p>
+
+          <a href="/sga" class="main-card-btn">
+            <span>Analyze skill gap</span>
+            <span>→</span>
+          </a>
+        </article>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="main-footer">
+    <span>aikerim.myrzakhan@gmail.com</span>
+  </div>
+</section>
+
+</body>
 </html>

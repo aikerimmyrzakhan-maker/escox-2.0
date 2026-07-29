@@ -7,3 +7,9 @@ skill_embeddings.bin
 build/
 dist/
 esco_skill_extractor.egg-info/
+.venv/
+*.bin
+userdata.db
+.vscode/
+.idea/
+.DS_Store

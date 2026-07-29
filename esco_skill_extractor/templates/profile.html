@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>My Profile | ESCOX </title>
+
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='eu.webp') }}" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="{{ url_for('static', filename='index.css') }}?v=4">
+  <link rel="stylesheet" href="{{ url_for('static', filename='profile.css') }}">
+
+  <script>
+    window.SERVER = `http://{{ host }}:{{ port }}`;
+  </script>
+  <script src="{{ url_for('static', filename='index.js') }}" defer></script>
+</head>
+
+<body>
+
+  <!-- TOPBAR -->
+  <header class="topbar">
+    <div class="topbar-left">ESCOX</div>
+    <nav class="topbar-right">
+      <a href="/">home page</a>
+      <a href="/skills">extract skills</a>
+      <a href="/occupations">occupations</a>
+      <a href="/sga">skill gap analysis</a>
+    </nav>
+  </header>
+
+  <section id="tool-page">
+    <div class="container profile-container">
+
+      <!-- PROFILE HEADER -->
+      <div class="profile-header">
+        <div class="profile-avatar" id="profile-avatar-circle">?</div>
+        <div class="profile-info">
+          <h1 id="profile-name">Loading…</h1>
+          <p id="profile-email" class="profile-email"></p>
+        </div>
+        <button class="action-btn secondary logout-btn" onclick="doLogout()">
+          <i class="fas fa-sign-out-alt"></i> Log out
+        </button>
+      </div>
+
+      <!-- TABS -->
+      <div class="profile-tabs">
+        <button class="profile-tab active" data-tab="skills" onclick="switchTab('skills', this)">
+          <i class="fas fa-tag"></i> Saved Skills
+        </button>
+        <button class="profile-tab" data-tab="occupations" onclick="switchTab('occupations', this)">
+          <i class="fas fa-briefcase"></i> Saved Occupations
+        </button>
+        <button class="profile-tab" data-tab="tracker" onclick="switchTab('tracker', this)">
+          <i class="fas fa-chart-line"></i> SGA Tracker
+        </button>
+      </div>
+
+      <!-- TAB CONTENT: SAVED SKILLS -->
+      <div id="tab-skills" class="tab-panel active">
+        <div id="saved-skills-list" class="saved-grid">
+          <div class="profile-loading">Loading…</div>
+        </div>
+      </div>
+
+      <!-- TAB CONTENT: SAVED OCCUPATIONS -->
+      <div id="tab-occupations" class="tab-panel">
+        <div id="saved-occ-list" class="saved-grid">
+          <div class="profile-loading">Loading…</div>
+        </div>
+      </div>
+
+      <!-- TAB CONTENT: SGA TRACKER -->
+      <div id="tab-tracker" class="tab-panel">
+
+        <!-- TRACKER LIST view -->
+        <div id="tracker-list-view">
+          <div id="sga-analyses-list" class="sga-list">
+            <div class="profile-loading">Loading…</div>
+          </div>
+        </div>
+
+        <!-- TRACKER DETAIL view -->
+        <div id="tracker-detail-view" style="display:none;">
+          <button class="back-btn" onclick="closeTrackerDetail()">
+            ← Back to all analyses
+          </button>
+          <div id="tracker-detail-content"></div>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+
+  <script>
+  /* PROFILE PAGE SCRIPT */
+
+  let _currentTab = 'skills';
+  let _currentSgaId = null;
+
+  /* Boot */
+  document.addEventListener('DOMContentLoaded', async () => {
+    // Load user info
+    try {
+      const res  = await fetch('/auth/me');
+      const data = await res.json();
+      if (!data.logged_in) { window.location.href = '/auth/login'; return; }
+
+      document.getElementById('profile-name').textContent  = data.display_name || data.email;
+      document.getElementById('profile-email').textContent = data.email;
+      const initials = getInitials(data.display_name || data.email);
+      document.getElementById('profile-avatar-circle').textContent = initials;
+      const topbarInit = document.getElementById('topbar-initials');
+      if (topbarInit) topbarInit.textContent = initials;
+    } catch(e) {
+      window.location.href = '/auth/login';
+      return;
+    }
+
+    // Check hash for tab
+    const hash = location.hash.replace('#', '');
+    if (['skills','occupations','tracker'].includes(hash)) {
+      const btn = document.querySelector(`[data-tab="${hash}"]`);
+      if (btn) switchTab(hash, btn);
+    } else {
+      loadSavedItems('skills');
+    }
+  });
+
+  function getInitials(name) {
+    if (!name) return '?';
+    const parts = name.trim().split(/\s+/);
+    if (parts.length === 1) return parts[0][0].toUpperCase();
+    return (parts[0][0] + parts[parts.length-1][0]).toUpperCase();
+  }
+
+  /* Tabs */
+  function switchTab(tab, btn) {
+    _currentTab = tab;
+    document.querySelectorAll('.profile-tab').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(`tab-${tab}`).classList.add('active');
+    location.hash = tab;
+
+    if (tab === 'skills')      loadSavedItems('skills');
+    if (tab === 'occupations') loadSavedItems('occupation');
+    if (tab === 'tracker')     loadSgaAnalyses();
+  }
+
+  /* Saved Items */
+  async function loadSavedItems(type) {
+    const containerId = type === 'skills' ? 'saved-skills-list' : 'saved-occ-list';
+    const container   = document.getElementById(containerId);
+    container.innerHTML = '<div class="profile-loading">Loading…</div>';
+
+    try {
+      const res   = await fetch(`/api/saved?type=${type}`);
+      const items = await res.json();
+
+      if (!items.length) {
+        container.innerHTML = `
+          <div class="profile-empty">
+            <i class="fas fa-${type === 'skills' ? 'tag' : 'briefcase'} empty-icon"></i>
+            <p>No saved ${type} yet.</p>
+            <a href="/${type === 'skills' ? 'skills' : 'occupations'}" class="action-btn">
+              Go extract ${type === 'skills' ? 'skills' : 'occupations'}
+            </a>
+          </div>`;
+        return;
+      }
+
+      container.innerHTML = items.map(item => `
+        <div class="saved-card" id="saved-card-${item.id}">
+          <div class="saved-card-header">
+            <span class="saved-type-badge badge-${item.type}">${item.type}</span>
+            <button class="saved-delete-btn" onclick="event.stopPropagation(); deleteItem(${item.id}, '${type}')" title="Delete">
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>
+          <div class="saved-card-title" onclick="toggleSavedItem(${item.id}, '${item.type}')" style="cursor:pointer;">
+            ${escapeHtml(item.label)}
+          </div>
+          <div class="saved-card-date">${formatDate(item.created_at)}</div>
+        </div>
+        <!-- Expanded view — full width row below the card -->
+        <div id="saved-expand-${item.id}" style="display:none; grid-column:1/-1;">
+          <div class="saved-expand-panel">
+            <div class="saved-expand-inner">
+              <div class="saved-expand-list" id="saved-expand-list-${item.id}"></div>
+              <div class="saved-expand-detail saved-detail-placeholder" id="saved-expand-detail-${item.id}">
+                <i class="fas fa-hand-pointer"></i>
+                <p>Click a skill to see details</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      `).join('');
+
+    } catch(e) {
+      container.innerHTML = '<div class="profile-error">Failed to load items.</div>';
+    }
+  }
+async function toggleSavedItem(id, type) {
+  const expand = document.getElementById(`saved-expand-${id}`);
+  if (!expand) return;
+
+  // Toggle close
+  if (expand.style.display !== 'none') {
+    expand.style.display = 'none';
+    return;
+  }
+
+  // Fetch and render
+  try {
+    const res  = await fetch(`/api/saved/${id}`);
+    const item = await res.json();
+    let payload = item.payload;
+    while (typeof payload === 'string') {
+      try { payload = JSON.parse(payload); } catch(_) { break; }
+    }
+
+    const listEl   = document.getElementById(`saved-expand-list-${id}`);
+    const detailEl = document.getElementById(`saved-expand-detail-${id}`);
+
+    if (type === 'skills' && Array.isArray(payload)) {
+      window._savedSkillsPayload = payload;
+      window._savedSkillsDetailId = id;
+
+      listEl.innerHTML = `
+        <div class="saved-expand-count">${payload.length} skills — click to see details</div>
+        ${payload.map((s, i) => `
+          <div class="saved-skill-row" onclick="showExpandedSkillDetail(${i}, '${id}')">
+            ${escapeHtml(typeof s === 'string' ? s : (s.label || ''))}
+            ${s.digital ? '<span style="font-size:11px;background:#dbeafe;color:#1d4ed8;padding:2px 7px;border-radius:10px;">DIGITAL</span>' : ''}
+            ${s.green   ? '<span style="font-size:11px;background:#d1fae5;color:#065f46;padding:2px 7px;border-radius:10px;">GREEN</span>' : ''}
+          </div>
+        `).join('')}`;
+
+      detailEl.innerHTML = '<p>Click a skill to see details</p>';
+
+    }  
+    
+    
+    else if (type === 'occupation') {
+    const occs = Array.isArray(payload) ? payload : [payload];
+    window._savedOccsPayload = occs;
+
+    listEl.innerHTML = `
+      <div class="saved-expand-count">${occs.length} occupation${occs.length > 1 ? 's' : ''}</div>
+      ${occs.map((occ, i) => `
+        <div class="saved-skill-row" onclick="showExpandedOccDetail(${i}, '${id}')">
+          <span class="saved-skill-row-label">${escapeHtml(occ.label || '')}</span>
+          ${occ.iscoGroup ? `<span class="saved-isco-badge">ISCO ${escapeHtml(occ.iscoGroup)}</span>` : ''}
+        </div>
+      `).join('')}`;
+
+    detailEl.className = 'saved-expand-detail saved-detail-placeholder';
+    detailEl.innerHTML = `
+      <i class="fas fa-briefcase"></i>
+      <p>Click an occupation to see details</p>
+    `;
+  }
+
+    expand.style.display = '';
+  } catch(e) {
+    console.error(e);
+  }
+}
+
+window.showExpandedSkillDetail = function(index, expandId) {
+  const skill    = window._savedSkillsPayload?.[index];
+  const detailEl = document.getElementById(`saved-expand-detail-${expandId}`);
+  if (!skill || !detailEl) return;
+
+  document.querySelectorAll(`#saved-expand-list-${expandId} .saved-skill-row`)
+    .forEach((el, i) => el.classList.toggle('active', i === index));
+
+  detailEl.className = 'saved-expand-detail';
+  detailEl.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+      <h3 class="saved-detail-title">${escapeHtml(skill.label || '')}</h3>
+      ${skill.digital ? '<span style="font-size:11px;background:#dbeafe;color:#1d4ed8;padding:3px 9px;border-radius:10px;font-weight:600;">DIGITAL</span>' : ''}
+      ${skill.green   ? '<span style="font-size:11px;background:#d1fae5;color:#065f46;padding:3px 9px;border-radius:10px;font-weight:600;">GREEN</span>'   : ''}
+    </div>
+
+    <p class="saved-detail-desc" style="color:${skill.description ? '#555' : '#9ca3af'};">
+      ${escapeHtml(skill.description || 'No description available.')}
+    </p>
+
+    ${skill.path?.length ? `
+      <div class="saved-detail-section-label">Hierarchy</div>
+      <div class="saved-detail-hierarchy">
+        ${skill.path.map((p, i) => `
+          <div class="saved-detail-hierarchy-row" style="padding-left:${i*12}px;">
+            ${i > 0 ? '<span style="color:#d1d5db;">└</span> ' : ''}${escapeHtml(p)}
+          </div>`).join('')}
+      </div>` : ''}
+
+    ${skill.similar?.length ? `
+      <div class="saved-detail-section-label">Similar Skills</div>
+      <div class="saved-detail-pills">
+        ${skill.similar.map(s => `
+          <span style="padding:5px 12px;background:#ede9fe;border:1px solid #ddd6fe;border-radius:20px;font-size:12px;color:#5b21b6;font-weight:500;">
+            ${escapeHtml(s.label || '')}
+          </span>
+        `).join('')}
+      </div>` : ''}
+  `;
+};
+
+window.toggleSavedItem = toggleSavedItem;
+
+ async function openSavedItem(id, type) {
+  try {
+    const res  = await fetch(`/api/saved/${id}`);
+    const item = await res.json();
+    
+    // Unwrap payload — may be double-serialized
+    let payload = item.payload;
+    while (typeof payload === 'string') {
+      try { payload = JSON.parse(payload); } catch(_) { break; }
+    }
+
+    showSavedPayloadModal(item.label, payload, type);
+  } catch(e) {
+    console.error(e);
+    alert('Could not load saved item.');
+  }
+}
+
+function showSavedPayloadModal(label, payload, type) {
+  let content = '';
+
+  if (type === 'skills' && Array.isArray(payload)) {
+    const skillsHtml = payload.map((s, i) => `
+      <div onclick="showSavedSkillDetail(${i})" style="padding:10px 14px;border-radius:10px;cursor:pointer;border:1px solid #e5e7eb;margin-bottom:6px;font-size:14px;font-weight:500;color:#374151;transition:background 0.15s;"
+           onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='#fff'">
+        ${escapeHtml(typeof s === 'string' ? s : (s.label || ''))}
+        ${s.digital ? '<span style="font-size:11px;background:#dbeafe;color:#1d4ed8;padding:2px 6px;border-radius:10px;margin-left:6px;">DIGITAL</span>' : ''}
+        ${s.green ? '<span style="font-size:11px;background:#d1fae5;color:#065f46;padding:2px 6px;border-radius:10px;margin-left:6px;">GREEN</span>' : ''}
+      </div>
+    `).join('');
+
+    window._savedSkillsPayload = payload;
+
+    content = `
+      <div style="display:flex;gap:20px;margin-top:12px;min-height:300px;">
+        <!-- LEFT: skill list -->
+        <div style="flex:0 0 45%;overflow-y:auto;max-height:420px;">
+          <p style="color:#6b7280;font-size:12px;margin-bottom:8px;">${payload.length} skills — click to see details</p>
+          ${skillsHtml}
+        </div>
+        <!-- RIGHT: detail -->
+        <div id="saved-skill-detail" style="flex:1;border-left:1px solid #e5e7eb;padding-left:20px;color:#6b7280;font-size:14px;">
+          <p>Click a skill to see details</p>
+        </div>
+      </div>`;
+  }  
+  
+  
+  else if (type === 'occupation') {
+  // payload can be a single occupation OR an array
+  const occs = Array.isArray(payload) ? payload : [payload];
+
+  const occsHtml = occs.map((occ, i) => `
+    <div class="saved-skill-row" onclick="showExpandedOccDetail(${i}, '${Date.now()}')">
+      ${escapeHtml(occ.label || '')}
+      ${occ.iscoGroup ? `<span style="font-size:11px;background:#e0e7ff;color:#3730a3;padding:2px 7px;border-radius:10px;">ISCO ${escapeHtml(occ.iscoGroup)}</span>` : ''}
+    </div>
+  `).join('');
+
+  window._savedOccsPayload = occs;
+
+  content = `
+    <div style="display:flex;gap:0;min-height:300px;">
+      <div class="saved-expand-list" style="flex:0 0 42%;border-right:1.5px solid #e5e7eb;padding-right:20px;">
+        <div class="saved-expand-count">${occs.length} occupation${occs.length > 1 ? 's' : ''}</div>
+        ${occsHtml}
+      </div>
+      <div id="saved-occ-detail-panel" class="saved-expand-detail saved-detail-placeholder" style="flex:1;padding-left:24px;">
+        <i class="fas fa-briefcase"></i>
+        <p>Click an occupation to see details</p>
+      </div>
+    </div>`;
+}
+
+  let modal = document.getElementById('saved-item-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'saved-item-modal';
+    modal.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:9000;display:flex;align-items:center;justify-content:center;`;
+    modal.onclick = e => { if (e.target === modal) modal.remove(); };
+    document.body.appendChild(modal);
+  }
+
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:20px;padding:28px;width:min(780px,calc(100vw - 40px));max-height:85vh;overflow-y:auto;position:relative;">
+      <button onclick="document.getElementById('saved-item-modal').remove()"
+              style="position:absolute;top:14px;right:16px;border:none;background:transparent;font-size:18px;cursor:pointer;color:#9ca3af;">✕</button>
+      <h2 style="margin:0 0 4px;font-size:20px;">${escapeHtml(label)}</h2>
+      ${content}
+    </div>
+  `;
+}
+
+window.showExpandedOccDetail = function(index, expandId) {
+  const occ    = window._savedOccsPayload?.[index];
+  const detail = document.getElementById(`saved-expand-detail-${expandId}`);
+  if (!occ || !detail) return;
+
+  document.querySelectorAll(`#saved-expand-list-${expandId} .saved-skill-row`)
+    .forEach((el, i) => el.classList.toggle('active', i === index));
+
+  const essential = occ.skills?.essential || [];
+  const optional  = occ.skills?.optional  || [];
+
+  detail.className = 'saved-expand-detail';
+  detail.innerHTML = `
+    <h3 class="saved-detail-title">${escapeHtml(occ.label || '')}</h3>
+    ${occ.iscoGroup ? `<p style="color:#6b7280;font-size:12px;margin-bottom:10px;">ISCO Group: ${escapeHtml(occ.iscoGroup)}</p>` : ''}
+    ${occ.description ? `<p class="saved-detail-desc">${escapeHtml(occ.description)}</p>` : ''}
+    ${essential.length ? `
+      <div class="saved-detail-section-label">⭐ Essential Skills</div>
+      <div class="saved-detail-pills">
+        ${essential.map(s => `<span class="saved-detail-pill-essential">${escapeHtml(s.label)}</span>`).join('')}
+      </div>` : ''}
+    ${optional.length ? `
+      <div class="saved-detail-section-label">➕ Optional Skills</div>
+      <div class="saved-detail-pills">
+        ${optional.slice(0,10).map(s => `<span class="saved-detail-pill-optional">${escapeHtml(s.label)}</span>`).join('')}
+      </div>` : ''}
+  `;
+};
+
+window.showSavedSkillDetail = function(index) {
+  const skill = window._savedSkillsPayload?.[index];
+  if (!skill) return;
+  const detail = document.getElementById('saved-skill-detail');
+  if (!detail) return;
+
+  detail.innerHTML = `
+    <h3 style="margin:0 0 8px;font-size:16px;font-weight:700;">${escapeHtml(skill.label || '')}</h3>
+    <p style="color:${skill.description ? '#444' : '#9ca3af'};font-size:13px;line-height:1.6;">
+      ${escapeHtml(skill.description || 'No description available.')}
+    </p>
+    ${skill.path?.length ? `
+      <div style="margin-top:12px;">
+        <div style="font-size:12px;font-weight:600;color:#6b7280;margin-bottom:6px;">HIERARCHY</div>
+        ${skill.path.map((p, i) => `
+          <div style="font-size:12px;color:#6b7280;padding-left:${i*10}px;">
+            ${i > 0 ? '└ ' : ''}${escapeHtml(p)}
+          </div>
+        `).join('')}
+      </div>` : ''}
+    ${skill.similar?.length ? `
+      <div style="margin-top:12px;">
+        <div style="font-size:12px;font-weight:600;color:#6b7280;margin-bottom:6px;">SIMILAR SKILLS</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;">
+          ${skill.similar.map(s => `<span style="padding:4px 10px;background:#f3f4f6;border-radius:12px;font-size:12px;">${escapeHtml(s.label || '')}</span>`).join('')}
+        </div>
+      </div>` : ''}
+  `;
+};
+
+  async function deleteItem(id, type) {
+    if (!confirm('Delete this saved item?')) return;
+    try {
+      await fetch(`/api/saved/${id}`, { method: 'DELETE' });
+      document.getElementById(`saved-card-${id}`)?.remove();
+      // If grid is now empty, reload to show empty state
+      const containerId = type === 'skills' ? 'saved-skills-list' : 'saved-occ-list';
+      const container   = document.getElementById(containerId);
+      if (!container.querySelector('.saved-card')) loadSavedItems(type);
+    } catch(e) {
+      alert('Could not delete item.');
+    }
+  }
+
+  /* SGA Tracker List */
+  async function loadSgaAnalyses() {
+    const container = document.getElementById('sga-analyses-list');
+    container.innerHTML = '<div class="profile-loading">Loading…</div>';
+
+    // Close any open detail
+    document.getElementById('tracker-list-view').style.display = '';
+    document.getElementById('tracker-detail-view').style.display = 'none';
+
+    try {
+      const res      = await fetch('/api/sga-tracker');
+      const analyses = await res.json();
+
+      if (!analyses.length) {
+        container.innerHTML = `
+          <div class="profile-empty">
+            <i class="fas fa-chart-line empty-icon"></i>
+            <p>No tracked analyses yet.</p>
+            <a href="/sga" class="action-btn">Run a skill gap analysis</a>
+          </div>`;
+        return;
+      }
+
+      container.innerHTML = analyses.map(a => `
+        <div class="sga-card" id="sga-card-${a.id}" onclick="openTrackerDetail(${a.id})">
+          <div class="sga-card-top">
+            <div class="sga-card-title">${escapeHtml(a.title)}</div>
+            <button class="saved-delete-btn" onclick="event.stopPropagation(); deleteSga(${a.id})" title="Delete">
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>
+
+          ${a.occupation_label ? `<div class="sga-target">Target: ${escapeHtml(a.occupation_label)}</div>` : ''}
+
+          <div class="sga-progress-row">
+            <div class="sga-progress-bar-wrap">
+              <div class="sga-progress-bar" style="width: ${a.progress_pct}%"></div>
+            </div>
+            <span class="sga-progress-pct">${a.progress_pct}%</span>
+          </div>
+
+          <div class="sga-stats">
+            <span class="sga-stat learned"><i class="fas fa-check-circle"></i> ${a.learned_count} learned</span>
+            <span class="sga-stat missing"><i class="fas fa-circle-dot"></i> ${a.total_needed - a.learned_count} remaining</span>
+          </div>
+
+          <div class="sga-card-date">Updated ${formatDate(a.updated_at)}</div>
+        </div>
+      `).join('');
+
+    } catch(e) {
+      container.innerHTML = '<div class="profile-error">Failed to load analyses.</div>';
+    }
+  }
+
+  async function deleteSga(id) {
+    if (!confirm('Delete this analysis?')) return;
+    try {
+      await fetch(`/api/sga-tracker/${id}`, { method: 'DELETE' });
+      document.getElementById(`sga-card-${id}`)?.remove();
+      const container = document.getElementById('sga-analyses-list');
+      if (!container.querySelector('.sga-card')) loadSgaAnalyses();
+    } catch(e) {
+      alert('Could not delete.');
+    }
+  }
+
+  /* SGA Tracker Detail */
+  async function openTrackerDetail(id) {
+    _currentSgaId = id;
+    document.getElementById('tracker-list-view').style.display   = 'none';
+    document.getElementById('tracker-detail-view').style.display = '';
+    document.getElementById('tracker-detail-content').innerHTML  = '<div class="profile-loading">Loading analysis…</div>';
+
+    try {
+      const res  = await fetch(`/api/sga-tracker/${id}`);
+      const data = await res.json();
+      renderTrackerDetail(data);
+    } catch(e) {
+      document.getElementById('tracker-detail-content').innerHTML = '<div class="profile-error">Failed to load analysis.</div>';
+    }
+  }
+
+  function renderTrackerDetail(data) {
+    const missing = data.missing_skills || [];
+    const learned = missing.filter(s => s.learned);
+    const pending = missing.filter(s => !s.learned);
+    const pct     = data.progress_pct;
+
+    document.getElementById('tracker-detail-content').innerHTML = `
+      <div class="detail-header">
+        <h2 class="detail-title">${escapeHtml(data.title)}</h2>
+        ${data.occupation_label ? `<p class="detail-target">Target role: <strong>${escapeHtml(data.occupation_label)}</strong></p>` : ''}
+      </div>
+
+      <!-- Progress ring -->
+      <div class="detail-progress-wrap">
+        <div class="progress-ring-container">
+          <svg class="progress-ring" viewBox="0 0 120 120">
+            <circle class="ring-bg" cx="60" cy="60" r="52" />
+            <circle class="ring-fill" cx="60" cy="60" r="52"
+              stroke-dasharray="${Math.round(2 * Math.PI * 52)}"
+              stroke-dashoffset="${Math.round(2 * Math.PI * 52 * (1 - pct/100))}"
+            />
+          </svg>
+          <div class="ring-text">
+            <span class="ring-pct" id="live-pct">${pct}%</span>
+            <span class="ring-label">complete</span>
+          </div>
+        </div>
+
+        <div class="detail-stats">
+          <div class="detail-stat">
+            <span class="detail-stat-val">${data.total_needed}</span>
+            <span class="detail-stat-label">Required skills</span>
+          </div>
+          <div class="detail-stat learned-stat">
+            <span class="detail-stat-val" id="live-learned">${data.learned_count}</span>
+            <span class="detail-stat-label">Learned</span>
+          </div>
+          <div class="detail-stat">
+            <span class="detail-stat-val" id="live-remaining">${data.total_needed - data.learned_count}</span>
+            <span class="detail-stat-label">Remaining</span>
+          </div>
+        </div>
+      </div>
+
+      ${pct === 100 ? `
+        <div class="congrats-banner">
+          🎉 Congratulations! You've learned all required skills for this goal!
+        </div>
+      ` : ''}
+
+      <!-- Skill columns -->
+      <div class="skills-two-col">
+
+        <!-- Still missing -->
+        <div class="skill-col">
+          <h3 class="col-title missing-title">
+            <i class="fas fa-circle-dot"></i> Still to learn (${pending.length})
+          </h3>
+          <div class="skill-checklist" id="pending-list">
+            ${pending.map(s => `
+              <label class="skill-check-item" data-label="${escapeHtml(s.label)}">
+                <input type="checkbox" onchange="toggleSkill('${escapeHtml(s.label).replace(/'/g, "\\'")}', ${_currentSgaId}, this)" />
+                <span class="skill-check-label">${escapeHtml(s.label)}</span>
+                ${s.digital ? '<span class="badge badge-digital">Digital</span>' : ''}
+                ${s.green   ? '<span class="badge badge-green">Green</span>'   : ''}
+              </label>
+            `).join('')}
+            ${!pending.length ? '<p class="col-empty">All skills learned! 🎉</p>' : ''}
+          </div>
+        </div>
+
+        <!-- Learned -->
+        <div class="skill-col">
+          <h3 class="col-title learned-title">
+            <i class="fas fa-check-circle"></i> Already learned (${learned.length})
+          </h3>
+          <div class="skill-checklist learned-list" id="learned-list">
+            ${learned.map(s => `
+              <label class="skill-check-item learned" data-label="${escapeHtml(s.label)}">
+                <input type="checkbox" checked onchange="toggleSkill('${escapeHtml(s.label).replace(/'/g, "\\'")}', ${_currentSgaId}, this)" />
+                <span class="skill-check-label">${escapeHtml(s.label)}</span>
+                ${s.digital ? '<span class="badge badge-digital">Digital</span>' : ''}
+                ${s.green   ? '<span class="badge badge-green">Green</span>'   : ''}
+              </label>
+            `).join('')}
+            ${!learned.length ? '<p class="col-empty">Check off skills you\'ve learned above.</p>' : ''}
+          </div>
+        </div>
+
+      </div>
+    `;
+  }
+
+  async function toggleSkill(label, analysisId, checkbox) {
+    checkbox.disabled = true;
+
+    try {
+      const res  = await fetch(`/api/sga-tracker/${analysisId}/toggle-skill`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ label }),
+      });
+      const data = await res.json();
+
+      // Update live counters + ring
+      document.getElementById('live-pct').textContent       = data.progress_pct + '%';
+      document.getElementById('live-learned').textContent   = data.learned_count;
+      document.getElementById('live-remaining').textContent = data.total_needed - data.learned_count;
+
+      // Update ring dashoffset
+      const circumference = Math.round(2 * Math.PI * 52);
+      const fill = document.querySelector('.ring-fill');
+      if (fill) {
+        fill.style.strokeDashoffset = Math.round(circumference * (1 - data.progress_pct / 100));
+      }
+
+      // Move the item between columns by re-rendering the detail
+      const fullRes  = await fetch(`/api/sga-tracker/${analysisId}`);
+      const fullData = await fullRes.json();
+      renderTrackerDetail(fullData);
+
+    } catch(e) {
+      checkbox.disabled = false;
+      alert('Could not update. Please try again.');
+    }
+  }
+
+  function closeTrackerDetail() {
+    _currentSgaId = null;
+    document.getElementById('tracker-list-view').style.display   = '';
+    document.getElementById('tracker-detail-view').style.display = 'none';
+    loadSgaAnalyses();
+  }
+
+  /* Logout */
+  async function doLogout() {
+    await fetch('/auth/logout', { method: 'POST' });
+    window.location.href = '/';
+  }
+
+  /* Helpers */
+  function escapeHtml(s) {
+    if (!s) return '';
+    return String(s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+
+  function formatDate(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    return d.toLocaleDateString(undefined, { year:'numeric', month:'short', day:'numeric' });
+  }
+
+  window.switchTab         = switchTab;
+  window.deleteItem        = deleteItem;
+  window.deleteSga         = deleteSga;
+  window.openTrackerDetail = openTrackerDetail;
+  window.closeTrackerDetail= closeTrackerDetail;
+  window.toggleSkill       = toggleSkill;
+  window.doLogout          = doLogout;
+  window.openSavedItem       = openSavedItem;
+  
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <title>Skill Gap Analysis | ESCOX</title>
+
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='eu.webp') }}" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="{{ url_for('static', filename='index.css') }}?v=4">
+  <link rel="stylesheet" href="{{ url_for('static', filename='sga.css') }}">
+
+  <script>
+    window.SERVER = `http://{{ host }}:{{ port }}`;
+  </script>
+
+  <script src="/static/index.js" defer></script>
+</head>
+
+<body>
+
+  <!-- ── TOPBAR ── -->
+  <header class="topbar">
+    <div class="topbar-left">ESCOX</div>
+    <nav class="topbar-right">
+      <a href="/">home page</a>
+      <a href="/skills">extract skills</a>
+      <a href="/occupations">occupations</a>
+      <a href="/sga" class="active">skill gap analysis</a>
+    </nav>
+  </header>
+
+  <section id="tool-page">
+    <div class="container">
+
+      <div class="skills-section">
+
+        <!-- TOP ROW: upload + search -->
+        <div class="skills-top-row">
+
+          <!-- LEFT BOX: upload buttons -->
+          <div class="skills-box-left">
+              <h2>Skill Gap Analysis:</h2>
+              <div class="skills-actions">
+
+                <button type="button" id="upload-skills-file-btn" class="action-btn">
+                  <svg viewBox="0 0 24 24" fill="currentColor" class="icon">
+                    <path d="M11.47 1.72a.75.75 0 0 1 1.06 0l3 3a.75.75 0 0 1-1.06 1.06l-1.72-1.72V7.5h-1.5V4.06L9.53 5.78a.75.75 0 0 1-1.06-1.06l3-3ZM11.25 7.5V15a.75.75 0 0 0 1.5 0V7.5h3.75a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3h-9a3 3 0 0 1-3-3v-9a3 3 0 0 1 3-3h3.75Z"/>
+                  </svg>
+                  upload CV
+                </button>
+                <input id="skills-file" type="file" accept=".pdf,.docx,.txt" style="display:none;" />
+
+                <button type="button" id="upload-job-file-btn" class="action-btn">
+                  <svg viewBox="0 0 24 24" fill="currentColor" class="icon">
+                    <path d="M6 2a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6H6zm7 1.5V8h4.5L13 3.5zM8 12h8v1.5H8V12zm0 3h8v1.5H8V15z"/>
+                  </svg>
+                  upload job description
+                </button>
+                <input id="job-file" type="file" accept=".pdf,.docx,.txt" style="display:none;" />
+
+                <button type="button" id="clear-sga-btn" class="action-btn secondary">
+                  clear
+                </button>
+
+              </div>
+            </div>
+
+          <!-- RIGHT BOX: search bar with same IDs as skills.html, bound to index.js -->
+          <div class="skills-box-right">
+            <div class="search-bar">
+              <div class="search-inline">
+
+                <input type="text" id="skill-search" placeholder="Search skills (e.g. Java)" />
+
+                <select id="skill-type">
+                  <option value="ALL">ALL</option>
+                </select>
+
+                <label class="checkbox">
+                  <input type="checkbox" id="tag-digital" /> Digital
+                </label>
+
+                <label class="checkbox">
+                  <input type="checkbox" id="tag-green" /> Green
+                </label>
+
+                <button id="search-skills-btn" class="action-btn">Search</button>
+                <button id="clear-skills-btn" class="action-btn secondary">Clear</button>
+
+              </div>
+
+              <!-- clicking a result calls selectSkill() — overridden below for SGA context -->
+              <div id="search-dropdown" class="search-dropdown"></div>
+            </div>
+          </div>
+
+        </div>
+
+
+        <!-- TWO INPUT TEXTAREAS -->
+        <div class="skills-main-row">
+          <div class="input-sections-row">
+
+            <!-- LEFT: Skills I Know -->
+            <div class="input-section-left">
+              <div class="input-card">
+                <div class="manual-header">
+                  <span class="step-number step-have">✓</span>
+                  <span class="manual-title">Skills I Know</span>
+                </div>
+                <textarea
+                  id="skills-have"
+                  placeholder="e.g. Python, SQL, data analysis, communication..."
+                  onfocus="window._sgaFocused='have'"
+                ></textarea>
+                <p class="sga-textarea-hint">Separate skills with commas · or upload your CV above</p>
+              </div>
+            </div>
+
+            <!-- RIGHT: Skills Required by Job -->
+            <div class="input-section-right">
+              <div class="input-card">
+                <div class="manual-header">
+                  <span class="step-number step-need">−</span>
+                  <span class="manual-title">Skills Required by Job</span>
+                </div>
+                <textarea
+                  id="skills-need"
+                  placeholder="e.g. machine learning, Docker, project management..."
+                  onfocus="window._sgaFocused='need'"
+                ></textarea>
+                <p class="sga-textarea-hint">Paste from a job posting · or upload the job description above</p>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- ANALYZE BUTTON -->
+          <button id="submit-button" type="button" class="extract-btn" onclick="runSgaAnalysis()">
+            <svg viewBox="0 0 24 24" fill="currentColor" class="icon">
+              <path d="M4 19h16v2H2V3h2v16zm3-3l3-4 3 3 5-6 1.5 1.2-6.5 8-3-3-2.5 3L7 16z"/>
+            </svg>
+            Analyze Skill Gap
+          </button>
+        </div>
+
+      </div>
+
+
+      <!-- 4 KPI CARDS -->
+      <div id="sga-summary" style="display:none;">
+        <div class="kpi-grid skill-summary-grid">
+
+          <div class="kpi-card">
+            <span class="kpi-value" id="kpi-required">—</span>
+            <span class="kpi-label">Required Skills</span>
+          </div>
+
+          <div class="kpi-card">
+            <span class="kpi-value" id="kpi-matched">—</span>
+            <span class="kpi-label">Matched Skills</span>
+          </div>
+
+          <div class="kpi-card">
+            <span class="kpi-value" id="kpi-missing">—</span>
+            <span class="kpi-label">Missing Skills</span>
+          </div>
+
+          <div class="kpi-card highlight">
+            <span class="kpi-value" id="kpi-match-pct">—</span>
+            <span class="kpi-label">Match %</span>
+          </div>
+
+        </div>
+      </div>
+
+      <div id="output"></div>
+      <div id="sga-actions" style="display:none; margin-top: 14px;"></div>
+
+      <!-- TWO-PANEL RESULTS LAYOUT -->
+      <div class="results-layout" id="sga-results-layout" style="display:none; align-items:stretch;">
+
+        <!-- LEFT: analysis results (missing skills, similarity, learning path) -->
+        <div id="sga-results-right" class="results-left" style="flex:1 1 57%; min-width:0;">
+          <h3 class="results-title">Analysis Results:</h3>
+          <p class="sga-placeholder-msg">Results will appear after analysis</p>
+        </div>
+
+        <!-- RIGHT: skill detail panel -->
+        <div id="skill-details" class="results-right" style="flex:1 1 43%; min-width:0;">
+          <h3 class="results-title">Skill Details:</h3>
+          <p class="sga-placeholder-msg">Click a missing skill on the left to see its details</p>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+
+  <!-- SGA PAGE SCRIPT -->
+  <script>
+
+    window.addSkillToField = function(label, fieldId) {
+  const field = document.getElementById(fieldId);
+  if (!field) return;
+  const current = field.value.split(',').map(s => s.trim()).filter(Boolean);
+  if (!current.includes(label)) {
+    field.value = [...current, label].join(', ');
+  }
+  const dd = document.getElementById('search-dropdown');
+  if (dd) dd.innerHTML = '';
+};
+  /* Override selectSkill so search results insert into the focused textarea */
+  function selectSkill(label) {
+    const targetId = window._sgaFocused === 'need' ? 'skills-need' : 'skills-have';
+    const target = document.getElementById(targetId);
+    if (!target) return;
+
+    const current = target.value.split(',').map(s => s.trim()).filter(Boolean);
+    if (!current.includes(label)) {
+      target.value = [...current, label].join(', ');
+    }
+
+    const dd = document.getElementById('search-dropdown');
+    if (dd) dd.innerHTML = '';
+  }
+
+  function renderSgaActionButtons(result) {
+  const actionsEl = document.getElementById('sga-actions');
+  if (actionsEl) actionsEl.style.display = 'none';
+
+  const missing = result.missing || [];
+  if (!missing.length) return;
+
+  const haveText = (document.getElementById('skills-have')?.value || '').trim();
+  const needText = (document.getElementById('skills-need')?.value || '').trim();
+
+  window._sgaSaveData = {
+    missing,
+    have: haveText.split(',').map(s => s.trim()).filter(Boolean),
+    need: needText.split(',').map(s => s.trim()).filter(Boolean),
+    summary: result.summary_chart || {}
+  };
+
+  window._sgaMissingLabels = missing.map(s => s.label).join('\n');
+}
+
+
+function addSkillToField(label, fieldId) {
+  const field = document.getElementById(fieldId);
+  if (!field) return;
+  
+  const current = field.value.split(',').map(s => s.trim()).filter(Boolean);
+  if (!current.includes(label)) {
+    field.value = [...current, label].join(', ');
+  }
+  
+  const dd = document.getElementById('search-dropdown');
+  if (dd) dd.innerHTML = '';
+}
+
+window.addSkillToField = addSkillToField;
+
+function downloadSgaJSON() {
+  const blob = new Blob([JSON.stringify(window._sgaSaveData, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'skill-gap.json'; a.click();
+}
+
+function downloadSgaCSV() {
+  const rows = (window._sgaSaveData?.missing || []).map(s => `"${s.label}","${s.digital ? 'Digital' : ''}","${s.green ? 'Green' : ''}"`);
+  const csv = ['label,digital,green', ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'skill-gap.csv'; a.click();
+}
+
+function downloadSgaExcel() {
+  const rows = (window._sgaSaveData?.missing || []).map(s => `<tr><td>${s.label}</td><td>${s.digital ? 'Digital' : ''}</td><td>${s.green ? 'Green' : ''}</td></tr>`).join('');
+  const html = `<table><tr><th>Label</th><th>Digital</th><th>Green</th></tr>${rows}</table>`;
+  const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'skill-gap.xls'; a.click();
+}
+
+ 
+
+  /* Upload CV and fills "Skills I Know" */
+async function uploadCvToHave() {
+  const fi = document.getElementById('skills-file');
+  if (!fi?.files?.length) { alert('Choose a file first.'); return; }
+
+  const fd = new FormData();
+  fd.append('file', fi.files[0]);
+
+  const out = document.getElementById('output');
+  out.innerHTML = '<p>Reading CV…</p>';
+
+  try {
+    const resp = await fetch(`${window.SERVER}/extract-skills-from-file`, { method: 'POST', body: fd });
+    const data = await resp.json();
+    if (!resp.ok) { out.innerHTML = `<p style="color:red">${escapeHtml(data.error || 'Upload failed')}</p>`; return; }
+
+    if (data.text) {
+      document.getElementById('skills-have').value = data.text.slice(0, 3000);
+    }
+    out.innerHTML = `<p style="color:green">✓ CV loaded — click Analyze Skill Gap to extract skills</p>`;
+  } catch (e) {
+    out.innerHTML = '<p style="color:red">CV upload failed</p>';
+  }
+}
+
+
+  /* Upload job description and fills "Skills Required by Job" */
+ async function uploadJobToNeed() {
+  const fi = document.getElementById('job-file');
+  if (!fi?.files?.length) { alert('Choose a file first.'); return; }
+
+  const fd = new FormData();
+  fd.append('file', fi.files[0]);
+
+  const out = document.getElementById('output');
+  out.innerHTML = '<p>Reading job description…</p>';
+
+  try {
+    const resp = await fetch(`${window.SERVER}/extract-skills-from-file`, { method: 'POST', body: fd });
+    const data = await resp.json();
+    if (!resp.ok) { out.innerHTML = `<p style="color:red">${escapeHtml(data.error || 'Upload failed')}</p>`; return; }
+
+    // Put raw text into the textarea and let SGA analysis extract skills from it
+    if (data.text) {
+      document.getElementById('skills-need').value = data.text.slice(0, 3000);
+    }
+    out.innerHTML = `<p style="color:green">✓ Job description loaded — click Analyze Skill Gap to extract skills</p>`;
+  } catch (e) {
+    out.innerHTML = '<p style="color:red">Job description upload failed</p>';
+  }
+}
+
+
+  /* Main analysis call */
+  async function runSgaAnalysis() {
+    const have = document.getElementById('skills-have').value.trim();
+    const need = document.getElementById('skills-need').value.trim();
+    const out  = document.getElementById('output');
+
+    if (!have || !need) {
+      out.innerHTML = '<p style="color:red">Please fill in both fields before analyzing.</p>';
+      return;
+    }
+
+    out.innerHTML = '<p>Analyzing skill gap…</p>';
+    document.getElementById('sga-summary').style.display = 'none';
+    document.getElementById('sga-results-layout').style.display = 'none';
+
+    try {
+      const resp = await fetch(`${window.SERVER}/extract-skill_gap_analysis`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ have, need }),
+      });
+
+      if (!resp.ok) {
+        const txt = await resp.text();
+        let msg = txt;
+        try { const j = JSON.parse(txt); msg = j.error || msg; } catch (_) {}
+        out.innerHTML = `<pre style="color:red;white-space:pre-wrap">${escapeHtml(msg)}</pre>`;
+        return;
+      }
+
+      const data = await resp.json();
+      out.innerHTML = '';
+      renderSgaResults(data);
+      renderSgaActionButtons(data);
+
+    } catch (e) {
+      console.error(e);
+      out.innerHTML = '<p style="color:red">Something went wrong. Check the console.</p>';
+    }
+
+    
+  }
+
+
+  /* Render KPI cards + two-panel results */
+  function renderSgaResults(data) {
+    const kpi     = data.summary_chart    || {};
+    const chart   = data.similarity_chart || [];
+    const missing = data.missing          || [];
+    const path    = data.path             || [];
+
+    const required = kpi.need    || 0;
+    const matched  = kpi.covered || 0;
+    const missingN = kpi.missing || 0;
+    const pct      = required ? Math.round((matched / required) * 100) : 0;
+
+    // KPI cards
+    document.getElementById('kpi-required').textContent  = required;
+    document.getElementById('kpi-matched').textContent   = matched;
+    document.getElementById('kpi-missing').textContent   = missingN;
+    document.getElementById('kpi-match-pct').textContent = pct + '%';
+    document.getElementById('sga-summary').style.display = 'block';
+
+    // Store missing skills globally for detail clicks
+    window._sgaMissingSkills = missing;
+
+    // RIGHT PANEL
+    const right = document.getElementById('sga-results-right');
+    right.innerHTML = `
+      <div class="sga-results-header">
+    <h3 class="results-title">Analysis Results:</h3>
+    <div class="sga-toolbar">
+      <button class="sga-toolbar-btn" onclick="openSaveModal('sga', window._sgaSaveData, 'Skill gap — ' + new Date().toLocaleDateString())">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 3H7a2 2 0 0 0-2 2v14l7-3 7 3V5a2 2 0 0 0-2-2z"/></svg>
+        Save into your profile
+      </button>
+      <div class="sga-toolbar-divider"></div>
+      <button class="sga-toolbar-btn" onclick="openTrackSgaModal(window._sgaSaveData.missing, window._sgaSaveData.have, window._sgaSaveData.need, '')">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 19h16v2H2V3h2v16zm3-3 3-4 3 3 5-6 1.5 1.2-6.5 8-3-3-2.5 3L7 16z"/></svg>
+        Track progress on learning these skills
+      </button>
+      <div class="sga-toolbar-divider"></div>
+      <button class="sga-toolbar-btn" id="sga-copy-btn" onclick="navigator.clipboard.writeText(window._sgaMissingLabels).then(() => { document.getElementById('sga-copy-title').textContent = 'Copied!'; setTimeout(() => document.getElementById('sga-copy-title').textContent = 'Copy', 1500); })">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12V1zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h11v14z"/></svg>
+        <span id="sga-copy-title">Copy CSV</span>
+      </button>
+      <div class="sga-toolbar-divider"></div>
+      <div class="sga-toolbar-btn sga-toolbar-download">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 16l-5-5h3V4h4v7h3l-5 5zm-7 2h14v2H5v-2z"/></svg>
+        Download results
+        <svg viewBox="0 0 24 24" fill="currentColor" style="width:10px;height:10px;"><path d="M7 10l5 5 5-5z"/></svg>
+        <div class="sga-toolbar-dropdown">
+          <button onclick="event.stopPropagation(); downloadSgaJSON()">JSON</button>
+          <button onclick="event.stopPropagation(); downloadSgaCSV()">CSV</button>
+          <button onclick="event.stopPropagation(); downloadSgaExcel()">Excel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+      <!-- Missing Skills -->
+      <div class="sga-result-section">
+        <div class="sga-section-label sga-label-missing">
+          <i class="fas fa-exclamation-circle"></i>&nbsp; Missing Skills
+        </div>
+        ${missing.length
+          ? `<ul class="summary-list">
+              ${missing.map((s, i) => `
+                <li class="summary-item skill-review-row" onclick="showMissingSkillDetails(${i})">
+                  <div class="skill-main">
+                    <a href="${s.url || '#'}" target="_blank" rel="noopener noreferrer" class="skill-tag">
+                      ${escapeHtml(cleanSkillLabel(s.label, s.url || ''))}
+                    </a>
+                  </div>
+                  <div class="skill-actions">
+                    <div class="action-badges">
+                      ${s.digital ? '<span class="badge badge-digital">DIGITAL</span>' : ''}
+                      ${s.green   ? '<span class="badge badge-green">GREEN</span>'     : ''}
+                    </div>
+                  </div>
+                </li>
+              `).join('')}
+            </ul>`
+          : '<p class="sga-empty">🎉 No missing skills — great match!</p>'
+        }
+      </div>
+
+      <!-- Similarity Chart -->
+      <div class="sga-result-section">
+        <div class="sga-section-label sga-label-similarity">
+          <i class="fas fa-chart-bar"></i>&nbsp; Skill Similarity Strength
+        </div>
+        <div class="progress-chart">
+          ${chart.map(c => `
+            <div class="progress-row">
+              <span class="progress-label">${escapeHtml(cleanSkillLabel(c.label, c.id || ''))}</span>
+              <div class="progress-bar">
+                <div class="progress-fill" style="width:${c.percent}%"></div>
+              </div>
+              <span class="progress-score">${Math.round(c.percent)}%</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+      <!-- Learning Path -->
+      <div class="sga-result-section">
+        <div class="sga-section-label sga-label-path">
+          <i class="fas fa-road"></i>&nbsp; Recommended Learning Path
+        </div>
+        ${path.length
+        ? `<ul class="summary-list">
+            ${path.map(s => `
+              <li class="summary-item skill-review-row">
+                <div class="skill-main">
+                  <span class="skill-tag">${escapeHtml(s)}</span>
+                </div>
+              </li>
+            `).join('')}
+          </ul>`
+          : '<p class="sga-empty">No learning path suggestions.</p>'
+        }
+      </div>
+    `;
+
+    document.getElementById('sga-results-layout').style.display = 'flex';
+
+    // Auto-show first missing skill in the right detail panel 
+    if (missing.length) {
+      showMissingSkillDetails(0);
+    } else {
+      document.getElementById('skill-details').innerHTML = `
+        <h3 class="results-title">Skill Details:</h3>
+        <p class="sga-placeholder-msg">No missing skills — you already match all requirements!</p>
+      `;
+    }
+
+    const dlBtn = right.querySelector('.sga-toolbar-download');
+      dlBtn?.addEventListener('click', () => dlBtn.classList.toggle('open'));
+      document.addEventListener('click', e => {
+        if (!e.target.closest('.sga-toolbar-download')) dlBtn?.classList.remove('open');
+      });
+  }
+
+
+  // Show detail of a missing skill — fetches full data from search endpoint 
+  async function showMissingSkillDetails(index) {
+    const skill = (window._sgaMissingSkills || [])[index];
+    if (!skill) return;
+
+    const container = document.getElementById('skill-details');
+    const label = cleanSkillLabel(skill.label, skill.url || '');
+
+    // Show loading state immediately
+    container.innerHTML = `
+      <h3 class="results-title">Skill Details:</h3>
+      <h2>${escapeHtml(label)}</h2>
+      <p style="color:#9ca3af;margin-top:12px;">Loading details…</p>
+    `;
+
+    // Fetch full skill data (description, path, similar) via extract-skills endpoint
+    let fullSkill = skill;
+    try {
+      const resp = await fetch(`${window.SERVER}/extract-skills`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify([label]),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        const results = Array.isArray(data) ? data.flat() : (data.results || []);
+        if (results.length) {
+          fullSkill = { ...skill, ...normalizeItem(results[0]) };
+        }
+      }
+    } catch (e) {
+      console.warn('Could not fetch full skill details:', e);
+    }
+
+    // Build hierarchy HTML
+    const path = Array.isArray(fullSkill.path) ? fullSkill.path.filter(Boolean) : [];
+    const pathHtml = path.length
+      ? `<div class="hierarchy-box">
+          <div class="hierarchy-header">
+            <i class="fas fa-sitemap hierarchy-icon"></i>
+            <div>
+              <div class="hierarchy-title">Skill Hierarchy</div>
+              <div class="hierarchy-subtitle">ESCO classification</div>
+            </div>
+          </div>
+          <div class="hierarchy-tree">
+            ${path.map((level, i) => `
+              <div class="hierarchy-level level-${i}" style="${i > 0 ? 'display:none' : ''}">
+                ${i < path.length - 1
+                  ? `<span class="arrow" onclick="toggleLevel(${i})">▸</span>`
+                  : `<span class="arrow-placeholder"></span>`}
+                <span class="hierarchy-pill">
+                  <span class="level-badge">Level ${i}:</span>
+                  <span class="level-text">${escapeHtml(level)}</span>
+                </span>
+              </div>
+            `).join('')}
+          </div>
+        </div>`
+      : '';
+
+    // Build similar skills HTML
+    const similar = fullSkill.similar || [];
+    const similarHtml = similar.length
+      ? `<div class="similar-box">
+          <div class="similar-title">Similar skills:</div>
+          <div class="similar-skills">
+            ${similar.map(s => `
+              <a href="${s.id || s.url || '#'}" target="_blank" rel="noopener noreferrer" class="similar-pill-link">
+                ${escapeHtml(s.label)}
+              </a>
+            `).join('')}
+          </div>
+        </div>`
+      : '';
+
+    container.innerHTML = `
+      <h3 class="results-title">Skill Details:</h3>
+      <h2>${escapeHtml(label)}</h2>
+
+      <p style="margin-top:10px;color:${fullSkill.description ? '#444' : '#666'}">
+        <strong>Description:</strong><br>
+        ${fullSkill.description ? escapeHtml(fullSkill.description) : 'No description available.'}
+      </p>
+
+      ${pathHtml}
+      ${similarHtml}
+
+      <div class="sga-missing-cta">
+        <p class="sga-cta-label">Want to learn this skill?</p>
+        <a
+          href="https://www.google.com/search?q=learn+${encodeURIComponent(label)}"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="skills-next-btn"
+        >
+          Search learning resources
+          <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <path d="M4.167 10h11.666" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+            <path d="M10.833 5 15.833 10l-5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </a>
+      </div>
+    `;
+  }
+
+
+  /* DOMContentLoaded: wire up everything */
+  document.addEventListener('DOMContentLoaded', () => {
+
+  if (typeof loadSkillTypesIntoSelect === 'function') loadSkillTypesIntoSelect();
+
+  // Search bar
+  document.getElementById('search-skills-btn')?.addEventListener('click', e => {
+    e.preventDefault();
+    if (typeof runIndependentSearch === 'function') runIndependentSearch();
+  });
+
+  document.getElementById('clear-skills-btn')?.addEventListener('click', e => {
+    e.preventDefault();
+    if (typeof clearSearchControls === 'function') clearSearchControls();
+    const dd = document.getElementById('search-dropdown');
+    if (dd) dd.innerHTML = '';
+  });
+
+  document.getElementById('skill-search')?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); if (typeof runIndependentSearch === 'function') runIndependentSearch(); }
+  });
+  document.getElementById('skill-search')?.addEventListener('input', () => {
+    if (typeof runIndependentSearch === 'function') runIndependentSearch();
+  });
+  document.getElementById('skill-type')?.addEventListener('change',  () => { if (typeof runIndependentSearch === 'function') runIndependentSearch(); });
+  document.getElementById('tag-digital')?.addEventListener('change', () => { if (typeof runIndependentSearch === 'function') runIndependentSearch(); });
+  document.getElementById('tag-green')?.addEventListener('change',   () => { if (typeof runIndependentSearch === 'function') runIndependentSearch(); });
+
+  // Close dropdown on outside click
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.search-bar')) {
+      const dd = document.getElementById('search-dropdown');
+      if (dd) dd.innerHTML = '';
+    }
+  });
+  
+  document.getElementById("clear-sga-btn")?.addEventListener("click", () => {
+  document.getElementById("skills-have").value = "";
+  document.getElementById("skills-need").value = "";
+  document.getElementById("output").innerHTML = "";
+  document.getElementById("sga-summary").style.display = "none";
+  document.getElementById("sga-results-layout").style.display = "none";
+});
+
+  // Upload buttons — use { once: true } on file input to prevent double-fire
+  document.getElementById('upload-skills-file-btn')?.addEventListener('click', () => {
+    const fi = document.getElementById('skills-file');
+    if (fi) { fi.value = ''; fi.click(); }
+  });
+  document.getElementById('skills-file')?.addEventListener('change', uploadCvToHave);
+
+  document.getElementById('upload-job-file-btn')?.addEventListener('click', () => {
+    const fi = document.getElementById('job-file');
+    if (fi) { fi.value = ''; fi.click(); }
+  });
+  document.getElementById('job-file')?.addEventListener('change', uploadJobToNeed);
+
+  // Pre-fill from skills page transfer
+  try {
+    const raw = sessionStorage.getItem('sgaSkillPayload');
+    if (raw) {
+      const payload = JSON.parse(raw);
+      if (payload.have?.length) document.getElementById('skills-have').value = payload.have.join(', ');
+      if (payload.need?.length) document.getElementById('skills-need').value = payload.need.join(', ');
+      sessionStorage.removeItem('sgaSkillPayload');
+    }
+  } catch (_) {}
+});
+
+  // Expose globals needed by index.js-generated onclick strings
+  window.selectSkill              = selectSkill;
+  window.showMissingSkillDetails  = showMissingSkillDetails;
+  window.runSgaAnalysis           = runSgaAnalysis;
+  </script>
+
+</body>
+</html>

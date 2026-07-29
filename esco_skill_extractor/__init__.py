@@ -1,257 +1,408 @@
-from itertools import chain
-from typing import Union, List
+from __future__ import annotations
+
+from typing import List, Dict, Optional, Union
 import warnings
 import pickle
 import os
 import re
 
+import numpy as np
+import pandas as pd
+import torch
 from sentence_transformers import SentenceTransformer, util
 
-import pandas as pd
-import numpy as np
-import torch
 
 
 class SkillExtractor:
-    _dir = __file__.replace("__init__.py", "")
+    _dir = os.path.dirname(__file__)
 
     def __init__(
         self,
         model: str = "all-MiniLM-L6-v2",
         skills_threshold: float = 0.6,
         occupation_threshold: float = 0.55,
-        device: Union[str, None] = None,
-    ):
-        """
-        Loads the models, skills and skill embeddings.
-
-        Args:
-            skills_threshold (float, optional): The similarity threshold for skill comparisons. Increase it to be more harsh. Defaults to 0.45. Range: [0, 1].
-            occupation_threshold (float, optional): The similarity threshold for occupation comparisons. Increase it to be more harsh. Defaults to 0.55. Range: [0, 1].
-            device (Union[str, None], optional): The device where the model will run. Defaults to "cuda" if available, otherwise "cpu".
-        """
-
+        device: Optional[str] = None,
+        use_cache: bool = True,
+        hierarchy_match_threshold: float = 0.30,
+    ) -> None:
         self.model_name = model
-        self.skills_threshold = skills_threshold
-        self.occupation_threshold = occupation_threshold
-        self.device = (
-            device if device else "cuda" if torch.cuda.is_available() else "cpu"
-        )
-        self._load_models()
+        self.skills_threshold = float(skills_threshold)
+        self.skills_threshold_loose = 0.55  
+        self.occupation_threshold = float(occupation_threshold)
+        self.hierarchy_match_threshold = float(hierarchy_match_threshold)
+        self.use_cache = bool(use_cache)
+
+        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+
+        # tags
+        self._green_skill_ids: set[str] = set()
+        self._digital_skill_ids: set[str] = set()
+
+        # load pipeline
+        self._load_model()
+
         self._load_skills()
+        self._load_skill_hierarchy()
+        self._load_skill_tags()
+
         self._load_occupations()
+
         self._create_skill_embeddings()
+        self._create_hierarchy_embeddings()
         self._create_occupation_embeddings()
 
-    def _load_models(self):
-        """
-        This method loads the model from the SentenceTransformer library.
-        """
-
-        # Ignore the security warning messages about loading the model from pickle
+    # ---------------- MODEL ----------------
+    def _load_model(self) -> None:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             self._model = SentenceTransformer(self.model_name, device=self.device)
 
-    def _load_skills(self):
-        """
-        This method loads the skills from the skills.csv file.
-        """
+    # ---------------- TAGS ----------------
+    def _load_skill_tags(self) -> None:
+        data_dir = os.path.join(SkillExtractor._dir, "data")
+        digital_file = os.path.join(data_dir, "digital_skills.csv")
+        green_file = os.path.join(data_dir, "green_skills.csv")
 
-        self._skills = pd.read_csv(f"{SkillExtractor._dir}/data/skills.csv")
-        self._skill_ids = self._skills["id"].to_numpy()
+        def load_uris(path: str) -> set[str]:
+            if not os.path.exists(path):
+                return set()
+            df = pd.read_csv(path, dtype=str, encoding="utf-8-sig").fillna("")
+            uri_col = next(
+                (c for c in df.columns if "conceptUri" in c or "uri" in c.lower()),
+                df.columns[0],
+            )
+            uris = df[uri_col].astype(str).str.strip()
+            return set(u for u in uris if u.startswith("http"))
 
-    def _load_occupations(self):
-        """
-        This method loads the occupations from the occupations.csv file.
-        """
+        self._digital_skill_ids = load_uris(digital_file)
+        self._green_skill_ids = load_uris(green_file)
 
-        self._occupations = pd.read_csv(f"{SkillExtractor._dir}/data/occupations.csv")
-        self._occupation_ids = self._occupations["id"].to_numpy()
+    def _is_green(self, skill_id: str) -> bool:
+        return skill_id in self._green_skill_ids
 
-    def _create_skill_embeddings(self):
-        """
-        This method creates the skill embeddings and saves them to a cache file.
-        If the cache file exists, it loads the embeddings from it.
-        """
+    def _is_digital(self, skill_id: str) -> bool:
+        return skill_id in self._digital_skill_ids
 
-        if os.path.exists(f"{SkillExtractor._dir}/data/skill_embeddings.bin"):
-            with open(f"{SkillExtractor._dir}/data/skill_embeddings.bin", "rb") as f:
-                self._skill_embeddings = pickle.load(f).to(self.device)
+    # ---------------- SKILLS ----------------
+    def _load_skills(self) -> None:
+        path = os.path.join(SkillExtractor._dir, "data", "skills_en.csv")
+        self._skills = pd.read_csv(path, encoding="utf-8", dtype=str).fillna("")
+
+        if "conceptUri" not in self._skills.columns:
+            raise ValueError("skills_en.csv must contain a 'conceptUri' column")
+
+        self._skills["id"] = self._skills["conceptUri"].astype(str)
+        self._skill_ids: np.ndarray = self._skills["id"].to_numpy()
+
+        # label column
+        self._skills_label_col = next(
+            (c for c in ["preferredLabel", "label", "name", "title", "enLabel"] if c in self._skills.columns),
+            None,
+        )
+
+        # description column used for embeddings
+        if "description" in self._skills.columns and self._skills["description"].str.strip().any():
+            self._skills_desc_col = "description"
+        elif self._skills_label_col:
+            self._skills_desc_col = self._skills_label_col
         else:
-            print(
-                "Skill embeddings file not found. Creating embeddings from scratch..."
-            )
-            self._skill_embeddings = self._model.encode(
-                self._skills["description"].to_list(),
-                device=self.device,
-                normalize_embeddings=True,
-                convert_to_tensor=True,
-            )
-            with open(f"{SkillExtractor._dir}/data/skill_embeddings.bin", "wb") as f:
-                pickle.dump(self._skill_embeddings, f)
+            self._skills_desc_col = "id"
 
-    def _create_occupation_embeddings(self):
+        # fast lookup tables
+        self._skills_by_id = self._skills.set_index("id", drop=False)
+
+    # ---------------- SKILL HIERARCHY ----------------
+    def _load_skill_hierarchy(self) -> None:
         """
-        This method creates the occupations embeddings and saves them to a cache file.
-        If the cache file exists, it loads the embeddings from it.
+        Loads hierarchy paths from skillsHierarchy_en.csv.
+        We store:
+          - self._hier_paths: list[list[str]]  (full path)
+          - self._hier_leaf_labels: list[str]  (leaf label for embedding match)
         """
+        path = os.path.join(SkillExtractor._dir, "data", "skillsHierarchy_en.csv")
+        self._hier_paths: List[List[str]] = []
+        self._hier_leaf_labels: List[str] = []
 
-        if os.path.exists(f"{SkillExtractor._dir}/data/occupation_embeddings.bin"):
-            with open(
-                f"{SkillExtractor._dir}/data/occupation_embeddings.bin", "rb"
-            ) as f:
-                self._occupation_embeddings = pickle.load(f).to(self.device)
-        else:
-            print(
-                "Occupation embeddings file not found. Creating embeddings from scratch..."
-            )
-            self._occupation_embeddings = self._model.encode(
-                self._occupations["description"].to_list(),
-                device=self.device,
-                normalize_embeddings=True,
-                convert_to_tensor=True,
-            )
-            with open(
-                f"{SkillExtractor._dir}/data/occupation_embeddings.bin", "wb"
-            ) as f:
-                pickle.dump(self._occupation_embeddings, f)
+        if not os.path.exists(path):
+            self._hier_df = None
+            return
 
-    def _texts_to_tokens(self, texts: List[str]) -> List[List[str]]:
-        """
-        This method splits the texts into tokens.
+        df = pd.read_csv(path, encoding="utf-8", dtype=str).fillna("")
+        self._hier_df = df
 
-        Args:
-            texts (List[str]): The texts to be split.
-
-        Returns:
-            List[str]: A list of lists containing the tokens for each text.
-        """
-
-        return [
-            [s for s in re.split(r"\r|\n|\t|\.|\,|\;|and|or", text.strip()) if s]
-            for text in texts
+        term_cols = [
+            "Level 0 preferred term",
+            "Level 1 preferred term",
+            "Level 2 preferred term",
+            "Level 3 preferred term",
         ]
 
-    def _get_entity(
-        self,
-        texts: List[str],
-        entity_ids: np.ndarray[str],
-        entity_embeddings: torch.Tensor,
-        threshold: float,
-    ) -> List[List[str]]:
-        """
-        This method extracts the entities from the texts.
+        paths: List[List[str]] = []
+        leaf_labels: List[str] = []
 
-        Args:
-            texts (List[str]): The texts from which the entities will be extracted.
-            entity_ids (np.ndarray[str]): The IDs of the entities.
-            entity_embeddings (torch.Tensor): The embeddings of the entities.
-            threshold (float): The similarity threshold for entity comparisons. Increase it to be more harsh.
+        for _, row in df.iterrows():
+            terms = [str(row.get(c, "")).strip() for c in term_cols]
+            terms = [t for t in terms if t]
+            if not terms:
+                continue
+            paths.append(terms)
+            leaf_labels.append(terms[-1])
 
-        Returns:
-            List[List[str]]: A list of lists containing the IDs of the entities for each text.
-        """
+        # de-duplicate by normalized path
+        uniq: Dict[str, tuple[List[str], str]] = {}
+        for p, leaf in zip(paths, leaf_labels):
+            key = " > ".join(p).lower()
+            if key not in uniq:
+                uniq[key] = (p, leaf)
 
-        # If there are no texts, return an empty list
-        if all(not text for text in texts):
-            return [[] for _ in texts]
+        self._hier_paths = [v[0] for v in uniq.values()]
+        self._hier_leaf_labels = [v[1] for v in uniq.values()]
 
-        # Split the texts into tokens and then flatten them to perform calculations faster
-        texts = self._texts_to_tokens(texts)
-        tokens = list(chain.from_iterable(texts))
+        print("✅ hierarchy path:", path)
+        print("✅ hierarchy exists:", os.path.exists(path))
 
-        # If there are no tokens, return an empty list
-        if not tokens:
-            return [[] for _ in texts]
 
-        # Calculate the embeddings for all flattened tokens
-        sentence_embeddings = self._model.encode(
-            tokens,
+        #----------- SKILL SIMILARITY  -------------
+    def get_similar_skills(self, skill_id: str, top_k: int = 5):
+        if skill_id not in self._skills_by_id.index:
+            return []
+
+        idx = list(self._skill_ids).index(skill_id)
+        query_emb = self._skill_embeddings[idx].unsqueeze(0)
+
+        sim = util.dot_score(query_emb, self._skill_embeddings)[0]
+
+        # get top similar (excluding itself)
+        top_idx = torch.topk(sim, k=top_k + 1).indices.tolist()
+
+        results = []
+        for i in top_idx:
+            sid = self._skill_ids[i]
+            if sid == skill_id:
+                continue
+            results.append(sid)
+
+        return self.resolve_skill_labels(results[:top_k])
+
+
+
+    # ------------- OCCUPATIONS -------------
+    def _load_occupations(self) -> None:
+        path = os.path.join(SkillExtractor._dir, "data", "occupations_en.csv")
+        if not os.path.exists(path):
+            path = os.path.join(SkillExtractor._dir, "data", "occupations.csv")
+
+        self._occupations = pd.read_csv(path, encoding="utf-8", dtype=str).fillna("")
+
+        if "conceptUri" in self._occupations.columns:
+            self._occupations["id"] = self._occupations["conceptUri"].astype(str)
+        elif "id" in self._occupations.columns:
+            self._occupations["id"] = self._occupations["id"].astype(str)
+        else:
+            raise ValueError("Occupations file must contain either 'conceptUri' or 'id'")
+
+        self._occupation_ids: np.ndarray = self._occupations["id"].to_numpy()
+
+        self._occupations_label_col = next(
+            (c for c in ["preferredLabel", "label", "name", "title", "enLabel"] if c in self._occupations.columns),
+            None,
+        )
+
+        if "description" in self._occupations.columns and self._occupations["description"].str.strip().any():
+            self._occupations_desc_col = "description"
+        elif self._occupations_label_col:
+            self._occupations_desc_col = self._occupations_label_col
+        else:
+            self._occupations_desc_col = "id"
+
+        self._occupations_by_id = self._occupations.set_index("id", drop=False)
+
+    # -------------- EMBEDDINGS --------------
+    def _encode_texts(self, texts: List[str]) -> torch.Tensor:
+        return self._model.encode(
+            texts,
             device=self.device,
             normalize_embeddings=True,
             convert_to_tensor=True,
+            show_progress_bar=False,
         )
 
-        # Calculate the similarity between all flattened tokens and all entities and
-        # find the most similar entity for each sentence.
-        # The embeddings are normalized so the dot product is the cosine similarity
-        similarity_matrix = util.dot_score(sentence_embeddings, entity_embeddings)
-        most_similar_entity_scores, most_similar_entity_indices = torch.max(
-            similarity_matrix, dim=-1
-        )
+    def _load_cached_tensor(self, path: str) -> Optional[torch.Tensor]:
+        if not self.use_cache:
+            return None
+        if not os.path.exists(path):
+            return None
+        try:
+            with open(path, "rb") as f:
+                t = pickle.load(f)
+            # ensure tensor on correct device
+            if isinstance(t, torch.Tensor):
+                return t.to(self.device)
+        except Exception:
+            return None
+        return None
 
-        # Un-flatten the list of most similar entities to match the original texts
-        entity_ids_per_text = []
-        sentences = 0
+    def _save_cached_tensor(self, path: str, tensor: torch.Tensor) -> None:
+        if not self.use_cache:
+            return
+        try:
+            with open(path, "wb") as f:
+                # store cpu tensor for portability
+                pickle.dump(tensor.detach().cpu(), f)
+        except Exception:
+            pass
 
-        for text in texts:
-            sentences_in_text = len(text)
+    def _create_skill_embeddings(self) -> None:
+        cache = os.path.join(SkillExtractor._dir, "data", "skill_embeddings.bin")
+        cached = self._load_cached_tensor(cache)
+        if cached is not None:
+            self._skill_embeddings = cached
+            return
 
-            most_similar_entity_indices_text = most_similar_entity_indices[
-                sentences : sentences + sentences_in_text
-            ]
-            most_similar_entity_scores_text = most_similar_entity_scores[
-                sentences : sentences + sentences_in_text
-            ]
+        # Use labels only, not descriptions, matches better against short input
+        texts = self._skills[self._skills_label_col].astype(str).tolist()
+        self._skill_embeddings = self._encode_texts(texts)
+        self._save_cached_tensor(cache, self._skill_embeddings)
 
-            # Filter the entities based on the threshold
-            most_similar_entity_indices_text = (
-                most_similar_entity_indices_text[
-                    torch.nonzero(most_similar_entity_scores_text > threshold)
-                ]
-                .squeeze(dim=-1)
-                .unique()
-                .tolist()
-            )
+        texts = self._skills[self._skills_desc_col].astype(str).tolist()
+        self._skill_embeddings = self._encode_texts(texts)
+        self._save_cached_tensor(cache, self._skill_embeddings)
 
-            # Create a list of dictionaries containing the entities for the current text
-            entity_ids_per_text.append(
-                np.take(entity_ids, most_similar_entity_indices_text).tolist()
-            )
-
-            sentences += sentences_in_text
-
-        return entity_ids_per_text
-
-    @staticmethod
-    def remove_embeddings():
+    def _create_hierarchy_embeddings(self) -> None:
         """
-        This method removes the skill and occupation embeddings from the disk in case the model changed.
-        This is useful to avoid loading the embeddings from the previous model.
+        Encodes hierarchy leaf labels into embeddings so we can map skill to closest category path.
         """
+        if not self._hier_leaf_labels:
+            self._hier_embeddings = None
+            return
 
-        if os.path.exists(f"{SkillExtractor._dir}/data/skill_embeddings.bin"):
-            os.remove(f"{SkillExtractor._dir}/data/skill_embeddings.bin")
-        if os.path.exists(f"{SkillExtractor._dir}/data/occupation_embeddings.bin"):
-            os.remove(f"{SkillExtractor._dir}/data/occupation_embeddings.bin")
+        cache = os.path.join(SkillExtractor._dir, "data", "hierarchy_embeddings.bin")
+        cached = self._load_cached_tensor(cache)
+        if cached is not None:
+            self._hier_embeddings = cached
+            return
 
+        self._hier_embeddings = self._encode_texts(self._hier_leaf_labels)
+        self._save_cached_tensor(cache, self._hier_embeddings)
+
+    def _create_occupation_embeddings(self) -> None:
+        cache = os.path.join(SkillExtractor._dir, "data", "occupation_embeddings.bin")
+        cached = self._load_cached_tensor(cache)
+        if cached is not None:
+            self._occupation_embeddings = cached
+            return
+
+        texts = self._occupations[self._occupations_desc_col].astype(str).tolist()
+        self._occupation_embeddings = self._encode_texts(texts)
+        self._save_cached_tensor(cache, self._occupation_embeddings)
+
+    # ----------- CORE ENTITY MATCHING --------
+    def _get_entity(self, texts, entity_ids, entity_embeddings, threshold):
+        if all(not (t or "").strip() for t in texts):
+            return [[] for _ in texts]
+
+        sent_emb = self._encode_texts(texts)
+        sim = util.dot_score(sent_emb, entity_embeddings)
+
+        results = []
+        for i in range(len(texts)):
+            above = (sim[i] > threshold).nonzero(as_tuple=True)[0].tolist()
+            results.append([entity_ids[idx] for idx in above])
+        return results
+
+    # ----------- HIERARCHY MAPPING -----------
+    def _best_hierarchy_path_for_skill_label(self, skill_label: str) -> List[str]:
+        """
+        Returns a hierarchy path like:
+          ["skills", "working with computers", "programming computer systems"]
+        If hierarchy is missing or match confidence is low -> []
+        """
+        if not skill_label or self._hier_embeddings is None or not self._hier_paths:
+            return []
+
+        q = self._encode_texts([skill_label])
+        sim = util.dot_score(q, self._hier_embeddings)  
+        best_idx = int(torch.argmax(sim, dim=1).item())
+        best_score = float(sim[0, best_idx].item())
+
+        if best_score < self.hierarchy_match_threshold:
+            return []
+
+        return self._hier_paths[best_idx]
+
+    # ----------- LABEL RESOLVERS -----------
+    def resolve_skill_labels(self, ids: List[str]) -> List[Dict[str, object]]:
+        out = []
+        for i in ids:
+            if i not in self._skills_by_id.index:
+                continue  # skip unknown ids
+                
+            row = self._skills_by_id.loc[i]
+            if isinstance(row, pd.DataFrame):
+                row = row.iloc[0]
+
+            label = str(row.get(self._skills_label_col, "")).strip() if self._skills_label_col else ""
+            description = str(row.get("description", "")).strip()
+
+            if not label:
+                label = i.rsplit("/", 1)[-1]
+            if not description:
+                description = f"{label} is a professional ESCO skill."
+
+            path = self._best_hierarchy_path_for_skill_label(label)
+
+            out.append({
+                "id": i,
+                "label": label,
+                "description": description,
+                "green": self._is_green(i),
+                "digital": self._is_digital(i),
+                "path": path,
+            })
+        return out
+
+    def resolve_occupation_labels(self, ids: List[str]) -> List[Dict[str, object]]:
+        out: List[Dict[str, object]] = []
+        for i in ids:
+            label = ""
+            if i in self._occupations_by_id.index and self._occupations_label_col:
+                label = str(self._occupations_by_id.at[i, self._occupations_label_col]).strip() or ""
+            if not label:
+                label = i.rsplit("/", 1)[-1]
+            out.append({"id": i, "label": label})
+        return out
+
+    # --------------- PUBLIC API ---------------
     def get_skills(self, texts: List[str]) -> List[List[str]]:
-        """
-        This method extracts the ESCO skills from the texts.
-
-        Returns:
-            List[List[str]]: A list of lists containing the IDs of the skills for each text.
-        """
-
-        return self._get_entity(
-            texts,
-            self._skill_ids,
-            self._skill_embeddings,
-            self.skills_threshold,
-        )
+        return self._get_entity(texts, self._skill_ids, self._skill_embeddings, self.skills_threshold)
 
     def get_occupations(self, texts: List[str]) -> List[List[str]]:
-        """
-        This method extracts the ESCO occupations from the texts.
+        return self._get_entity(texts, self._occupation_ids, self._occupation_embeddings, self.occupation_threshold)
 
-        Returns:
-            List[List[str]]: A list of lists containing the IDs of the occupations for each text.
-        """
+    def extract_and_classify(self, text: Union[str, List[str]]) -> List[Dict[str, object]]:
+        texts = text if isinstance(text, list) else [text]
+        all_ids: List[str] = []
 
-        return self._get_entity(
-            texts,
-            self._occupation_ids,
-            self._occupation_embeddings,
-            self.occupation_threshold,
-        )
+        for t in texts:
+            t = (t or "").strip()
+            if not t:
+                continue
+
+            ids = self._get_entity([t], self._skill_ids, self._skill_embeddings, self.skills_threshold_loose)[0]
+            all_ids.extend(ids)  
+
+        all_ids = list(dict.fromkeys(all_ids))
+
+        resolved = self.resolve_skill_labels(all_ids)
+        for s in resolved:
+            s["similar"] = self.get_similar_skills(s["id"])
+
+        for s in resolved:
+            if s.get("green"):
+                s["category"] = "GREEN"
+            elif s.get("digital"):
+                s["category"] = "DIGITAL"
+            else:
+                s["category"] = "OTHER"
+
+        return resolved
