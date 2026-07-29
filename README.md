@@ -1,165 +1,63 @@
-# ESCO Skill Extractor
+# ESCOX 2.0
 
-This is a a tool that extract **ESCO skills** and **ISCO occupations** from texts such as job descriptions or CVs. It uses a transformer and compares its embedding using cosine similarity.
+A full-stack web application for ESCO-based skill extraction, occupation matching, and skill gap analysis. Built as an extension of the original [ESCOSkillExtractor](https://github.com/KonstantinosPetrakis/esco-skill-extractor) tool, adding user accounts, saved results, and progress tracking on top of the core extraction engine.
+
+## Features
+
+1. Skill extraction — extract ESCO-aligned skills from free text, CVs (PDF/DOCX/TXT), or manual entry
+2. Occupation matching — find matching ISCO occupations based on skills or job descriptions, with essential/optional skill breakdowns and ISCO classification hierarchy
+3. Skill gap analysis - compare "skills you have" against "skills a role needs," with similarity scoring and a recommended learning path
+4. User accounts — register/login system with saved extraction results and analyses
+5. Progress tracking — an SGA tracker that lets users check off missing skills as they learn them, with visual progress indicators
+6. Digital & Green skill tagging — flags skills classified as digital or green competencies per the ESCO taxonomy
+
+## Requirements
+
+- Python 3.10+
+- pip
 
 ## Installation
 
 ```bash
-pip install esco-skill-extractor
+git clone https://github.com/aikerimmyrzakhan-maker/escox-2.0.git
+cd escox-2.0
+python -m venv .venv
+.venv\Scripts\activate      # Windows
+# source .venv/bin/activate  # macOS/Linux
+pip install -r requirements.txt
 ```
 
-## Installation via Docker
+## Running the app
 
 ```bash
-docker run -it -p 5000:5000 konstantinospetrakis/esco-skill-extractor
+python -m esco_skill_extractor --host localhost --port 8000
 ```
 
-## Usage
+Then open `http://localhost:8000` in your browser.
 
-### Via python
+### CLI options
 
-```python
-from esco_skill_extractor import SkillExtractor
-
-# Don't be scared, the 1st time will take longer to download the model and create the embeddings.
-skill_extractor = SkillExtractor()
-
-ads = [
-    "We are looking for a software engineer with experience in Java and Python.",
-    "We are looking for a devops engineer. Containerization tools such as Docker is a must. AWS is a plus."
-    # ...
-]
-
-print(skill_extractor.get_skills(ads))
-# [
-#     [
-#         "http://data.europa.eu/esco/skill/19a8293b-8e95-4de3-983f-77484079c389",
-#         "http://data.europa.eu/esco/skill/ccd0a1d9-afda-43d9-b901-96344886e14d",
-#     ],
-#     [
-#         "http://data.europa.eu/esco/skill/11430d93-c835-48ed-8e70-285fa69c9ae6",
-#         "http://data.europa.eu/esco/skill/ae4f0cc6-e0b9-47f5-bdca-2fc2e6316dce",
-#         "http://data.europa.eu/esco/skill/ce8ae6ca-61d8-4174-b457-641de96cbff4",
-#         "http://data.europa.eu/esco/skill/f0de4973-0a70-4644-8fd4-3a97080476f4",
-#     ],
-# ]
-print(skill_extractor.get_occupations(ads))
-# [
-#     [
-#         "http://data.europa.eu/esco/occupation/10469d70-78a3-4650-9e29-d04de13c62c1",
-#         "http://data.europa.eu/esco/occupation/1c5a896a-e010-4217-a29a-c44db26e25da",
-#         "http://data.europa.eu/esco/occupation/4874fa37-0cd1-4a68-aed8-a838851f242d",
-#         "http://data.europa.eu/esco/occupation/579254cf-6d69-4889-9000-9c79dc568644",
-#         "http://data.europa.eu/esco/occupation/57af9090-55b4-4911-b2d0-86db01c00b02",
-#         "http://data.europa.eu/esco/occupation/f2b15a0e-e65a-438a-affb-29b9d50b77d1",
-#         "http://data.europa.eu/esco/isco/C2512",
-#         "http://data.europa.eu/esco/isco/C2514",
-#     ],
-#     [
-#         "http://data.europa.eu/esco/occupation/2fb96c6c-8d0b-4ef0-b1ee-3e493305e4eb",
-#         "http://data.europa.eu/esco/occupation/349ee6f6-c295-4c38-9b98-48765b55280e",
-#         "http://data.europa.eu/esco/occupation/781a6350-e686-45b9-b075-e4c8d5a05ff7",
-#         "http://data.europa.eu/esco/occupation/93b11f0f-69af-4ece-b9da-f29aab7d38d3",
-#         "http://data.europa.eu/esco/occupation/bb609566-3ab6-44dd-8f48-cf0b15b96827",
-#         "http://data.europa.eu/esco/occupation/cc867bee-ab5c-427f-9244-f7a204d9574b",
-#     ],
-# ]
-```
-
-### Via GUI
-
-```bash
-# Visit the URL printed in the console.
-# run python -m esco_skill_extractor --help for more options.
-python -m esco_skill_extractor
-```
-
-<img src="docs/gui.gif">
-
-### Via API
-
-```bash
-# Visit the URL printed in the console.
-# run python -m esco_skill_extractor --help for more options.
-python -m esco_skill_extractor
-```
-
-```js
-async function getSkills() {
-  const texts = [
-    "We are looking for a software engineer with experience in Java and Python.",
-    "We are looking for a devops engineer. Containerization tools such as Docker is a must. AWS is a plus.",
-    // ...
-  ];
-
-  // Default host is localhost, and default port is 8000. Check CLI options for more.
-  const response = await fetch("http://localhost:8000/extract-skills", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(texts),
-  });
-
-  const skills = await response.json();
-  console.log(skills);
-  //  [
-  //    [
-  //      "http://data.europa.eu/esco/skill/19a8293b-8e95-4de3-983f-77484079c389",
-  //      "http://data.europa.eu/esco/skill/ccd0a1d9-afda-43d9-b901-96344886e14d",
-  //    ],
-  //    [
-  //      "http://data.europa.eu/esco/skill/11430d93-c835-48ed-8e70-285fa69c9ae6",
-  //      "http://data.europa.eu/esco/skill/ae4f0cc6-e0b9-47f5-bdca-2fc2e6316dce",
-  //      "http://data.europa.eu/esco/skill/ce8ae6ca-61d8-4174-b457-641de96cbff4",
-  //      "http://data.europa.eu/esco/skill/f0de4973-0a70-4644-8fd4-3a97080476f4",
-  //    ],
-  //  ]
-  const occupations = await fetch("http://localhost:8000/extract-occupations", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(texts),
-  });
-}
-```
-
-## Possible keyword arguments for `SkillExtractor`
-
-| Keyword Argument     | Description                                                                                                                                              | Default                        |
-| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
-| skill_threshold      | Skills surpassing this cosine similarity threshold are considered a match.                                                                               | 0.6                            |
-| occupation_threshold | Occupations surpassing this cosine similarity threshold are considered a match.                                                                          | 0.55                           |
-| device               | The device where the copulations will take place. AKA torch device.                                                                                      | "cuda" if available else "cpu" |
-| model                | The name of the model to use for embeddings. See[ available models](https://sbert.net/docs/sentence_transformer/pretrained_models.html#original-models). | "all-MiniLM-L6-v2"             |
+| Argument | Description | Default |
+|---|---|---|
+| `--model`, `-m` | Sentence-transformer model used for embeddings | `all-MiniLM-L6-v2` |
+| `--skill_threshold`, `-s` | Cosine similarity threshold for skill matches | `0.6` |
+| `--occupation_threshold`, `-o` | Cosine similarity threshold for occupation matches | `0.55` |
+| `--device`, `-d` | Torch device to run on | `cuda` if available, else `cpu` |
+| `--host`, `-c` | Host to serve on | `localhost` |
+| `--port`, `-p` | Port to serve on | `8000` |
 
 ## Notes
 
-If you change a model, don't forget to call the `remove_embeddings` static method to remove the old embeddings from disk.
+- On first run, the app builds sentence-transformer embeddings for skills, occupations, and the skill hierarchy. This may take a few minutes and is cached to disk afterward.
+- A local SQLite database (`userdata.db`) is created automatically to store user accounts, saved items, and SGA tracker progress.
+- Supports uploading CVs or job descriptions as PDF, DOCX, or TXT for automatic skill extraction.
 
-```python
-SkillExtractor.remove_embeddings()
-skill_extractor = SkillExtractor(model="new-model-name")
-```
+## Built on
 
-## How it works
+This project extends the original ESCO skill extraction engine described in:
 
-1. Generates embeddings for ESCO skills and ISCO occupations.
-2. Creates embeddings for the extracted skills.
-3. Compares the embeddings of ESCO skills or ISCO occupations with those of the extracted skills using cosine similarity and matches them if the similarity is above a certain threshold.
+Dimitrios Christos Kavargyris, Konstantinos Georgiou, Eleanna Papaioannou, Konstantinos Petrakis, Nikolaos Mittas, Lefteris Angelis, *ESCOX: A tool for skill and occupation extraction using LLMs from unstructured text*, Software Impacts, 2025. https://doi.org/10.1016/j.simpa.2025.100772
 
-## Related Publication
+## Author - Aikerim Myrzakhan
 
-```
-Dimitrios Christos Kavargyris, Konstantinos Georgiou, Eleanna Papaioannou, Konstantinos Petrakis, Nikolaos Mittas, Lefteris Angelis,
-ESCOX: A tool for skill and occupation extraction using LLMs from unstructured text,
-Software Impacts,
-2025,
-100772,
-ISSN 2665-9638,
-https://doi.org/10.1016/j.simpa.2025.100772.
-(https://www.sciencedirect.com/science/article/pii/S2665963825000326)
-Abstract: ESCOX, also known as ESCOSkillExtractor, is an open-source, non-proprietary tool for identifying and classifying skills, skillsets, and occupations from job postings and general text. It utilizes the European Skills, Competences, Qualifications and Occupations (ESCO) taxonomy to structure extraction, addressing the need for taxonomy-aligned skill identification in unstructured labor market data. Developed within the SKILLAB EU Horizon project, ESCOX combines LLMs and text embeddings to map content to standardized categories. It offers a user-friendly graphical interface for researchers, educators, and HR professionals, supporting skills gap analysis, training, recruitment, and policy planning, and contributing to the development of a skills-based economy.
-Keywords: Skill & occupation extraction; ESCO; Large language model; Job vacancies
-```
+Developed as an undergraduate thesis project at the Department of Informatics, Aristotle University of Thessaloniki (AUTH), supervised by Konstantinos Georgiou.
