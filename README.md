@@ -10,6 +10,7 @@ A full-stack web application based on ESCO classification with main skill extrac
 4. User accounts - register/login system with saved extraction results and analyses
 5. Progress tracking - an SGA tracker that lets users check off missing skills as they learn them, with visual progress indicators
 6. Digital & Green skill tagging - flags skills classified as digital or green competencies per the ESCO taxonomy
+7. Search & filter - search the full ESCO skill/occupation database directly, with filters by skill type, digital, and green classification
 
 ## Requirements
 
