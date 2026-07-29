@@ -58,10 +58,10 @@ Then open `http://localhost:8000` in your browser.
 
 ## Built on
 
-This project extends the original ESCO skill extraction engine described in:
+This project is an enhanced and expanded version of the original ESCOX / ESCOSkillExtractor tool, extending it with a full user account system, occupation matching, skill gap analysis, and progress tracking. The original engine is described in:
 
 Dimitrios Christos Kavargyris, Konstantinos Georgiou, Eleanna Papaioannou, Konstantinos Petrakis, Nikolaos Mittas, Lefteris Angelis, *ESCOX: A tool for skill and occupation extraction using LLMs from unstructured text*, Software Impacts, 2025. https://doi.org/10.1016/j.simpa.2025.100772
 
-## Author - Aikerim Myrzakhan
+## Author 
 
-Developed as an undergraduate thesis project at the Department of Informatics, Aristotle University of Thessaloniki (AUTH), supervised by Konstantinos Georgiou.
+Aikerim Myrzakhan — undergraduate thesis, Department of Informatics, Aristotle University of Thessaloniki (AUTH). Supervisor: Eleftherios Angelis.
