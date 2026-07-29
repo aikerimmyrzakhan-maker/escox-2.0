@@ -1,15 +1,15 @@
 # ESCOX 2.0
 
-A full-stack web application for ESCO-based skill extraction, occupation matching, and skill gap analysis. Built as an extension of the original [ESCOSkillExtractor](https://github.com/KonstantinosPetrakis/esco-skill-extractor) tool, adding user accounts, saved results, and progress tracking on top of the core extraction engine.
+A full-stack web application based on ESCO classification with main skill extraction, occupation matching, and skill gap analysis features. Built as an extension of the original [ESCOSkillExtractor](https://github.com/KonstantinosPetrakis/esco-skill-extractor) tool, adding user accounts, saved results, and progress tracking on top of the core extraction engine.
 
 ## Features
 
-1. Skill extraction — extract ESCO-aligned skills from free text, CVs (PDF/DOCX/TXT), or manual entry
-2. Occupation matching — find matching ISCO occupations based on skills or job descriptions, with essential/optional skill breakdowns and ISCO classification hierarchy
+1. Skill extraction - extract ESCO-aligned skills from free text, CVs (PDF/DOCX/TXT), or manual entry
+2. Occupation matching - find matching ISCO occupations based on skills or job descriptions, with essential/optional skill breakdowns and ISCO classification hierarchy
 3. Skill gap analysis - compare "skills you have" against "skills a role needs," with similarity scoring and a recommended learning path
-4. User accounts — register/login system with saved extraction results and analyses
-5. Progress tracking — an SGA tracker that lets users check off missing skills as they learn them, with visual progress indicators
-6. Digital & Green skill tagging — flags skills classified as digital or green competencies per the ESCO taxonomy
+4. User accounts - register/login system with saved extraction results and analyses
+5. Progress tracking - an SGA tracker that lets users check off missing skills as they learn them, with visual progress indicators
+6. Digital & Green skill tagging - flags skills classified as digital or green competencies per the ESCO taxonomy
 
 ## Requirements
 
