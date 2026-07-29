@@ -11,6 +11,9 @@ A full-stack web application based on ESCO classification with main skill extrac
 5. Progress tracking - an SGA tracker that lets users check off missing skills as they learn them, with visual progress indicators
 6. Digital & Green skill tagging - flags skills classified as digital or green competencies per the ESCO taxonomy
 7. Search & filter - search the full ESCO skill/occupation database directly, with filters by skill type, digital, and green classification
+8. Cross-page workflows - mark extracted skills as known/needed and carry them directly into skill gap analysis or occupation search; jump from an occupation straight into a pre-filled gap analysis with "Check your fit"
+9. Export & download - export results as JSON, CSV, or Excel from any results page
+
 
 ## Requirements
 
